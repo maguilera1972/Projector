@@ -1,0 +1,36 @@
+---
+description: Publier les changements sur Gitea (git.aguilera.ch) quand l'utilisateur le demande
+alwaysApply: true
+---
+
+# Publication Gitea (Aguilera_Lab/Projector)
+
+Quand l'utilisateur demande une **mise à jour du dépôt** en même temps que des changements (ou juste après), publier automatiquement sur Gitea **à la fin** du travail.
+
+## Déclencheurs (exemples)
+
+- « publie », « pousse », « push », « sync »
+- « mets à jour le repo / dépôt / Gitea »
+- « et publie sur Gitea », « avec publication »
+- « commit et push »
+
+Sans l'une de ces intentions : **ne pas** committer ni pousser.
+
+## Procédure
+
+1. Terminer d'abord les modifications demandées.
+2. Exécuter `scripts/publish-to-gitea.sh` (préféré), ou à défaut le flux git ci-dessous.
+3. Annoncer l'URL du commit / dépôt : `https://git.aguilera.ch/Aguilera_Lab/Projector`
+
+### Flux git (si le script échoue)
+
+- Remote uniquement : `https://git.aguilera.ch/Aguilera_Lab/Projector.git` (jamais d'IP).
+- Auth via `$GITEA_TOKEN` ou `.local/gitea-token` — **jamais** committer le jeton, ni le mettre dans `.git/config`.
+- Ne pas committer : `.env.local`, `data/`, `.local/`, `node_modules`, secrets.
+- Message de commit concis (pourquoi), via HEREDOC ; auteur one-shot si besoin (`git -c user.name=… -c user.email=…`), sans modifier `git config`.
+- Après push : remote `origin` doit rester sans credentials dans l'URL.
+
+## Interdits
+
+- Force push sur `main`, amend non demandé, `--no-verify`.
+- Stocker le jeton dans le dépôt ou dans une règle versionnée.

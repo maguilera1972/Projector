@@ -143,6 +143,27 @@ npm install
 npm run build
 ```
 
+## Publier des changements vers Gitea
+
+Sur la machine de développement, le script `scripts/publish-to-gitea.sh` pousse la branche `main` vers  
+`https://git.aguilera.ch/Aguilera_Lab/Projector.git`.
+
+Prérequis (jeton **non versionné**) :
+
+```bash
+mkdir -p .local
+echo 'VOTRE_JETON_GITEA' > .local/gitea-token
+chmod 600 .local/gitea-token
+# ou : export GITEA_TOKEN=...
+```
+
+```bash
+./scripts/publish-to-gitea.sh "Message de commit"
+```
+
+Avec l’agent Cursor : ajoutez à votre demande de modification une phrase du type  
+« et publie sur Gitea » / « mets à jour le dépôt » — la publication est alors faite automatiquement en fin de tâche.
+
 ## Licence
 
 Aguilera Lab — usage selon les règles de l’organisation.
