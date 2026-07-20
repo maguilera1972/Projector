@@ -36,7 +36,8 @@ PROJECTOR_SECRET=$(openssl rand -hex 32)
 # PROJECTOR_PUBLIC_URL=https://projector.example.com
 # PROJECTOR_COOKIE_SECURE=true
 
-# Mot de passe du compte admin créé au premier démarrage (optionnel)
+# Compte admin créé au premier démarrage (à définir)
+# PROJECTOR_ADMIN_EMAIL=votre@email.example
 # PROJECTOR_ADMIN_PASSWORD=ChangezMoi
 ```
 
@@ -81,14 +82,14 @@ loginctl enable-linger "$USER"
 
 ## Premier compte
 
-Au premier démarrage (base absente), un administrateur est créé :
+Au premier démarrage (base absente), un administrateur est créé. **Définissez vous-même** l’adresse e-mail et le mot de passe dans `.env.local` avant le premier lancement :
 
 | Champ | Valeur |
 |--------|--------|
-| E-mail | `michel@aguilera.ch` |
-| Mot de passe | variable `PROJECTOR_ADMIN_PASSWORD`, sinon valeur par défaut du code |
+| E-mail | variable `PROJECTOR_ADMIN_EMAIL` (à définir par l’utilisateur) |
+| Mot de passe | variable `PROJECTOR_ADMIN_PASSWORD` (à définir par l’utilisateur) |
 
-Changez ce mot de passe après la première connexion (Profil).
+Sans ces variables, des valeurs de secours génériques du code sont utilisées — changez-les immédiatement après la première connexion (Profil).
 
 Les données sont stockées dans :
 

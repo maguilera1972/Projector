@@ -116,8 +116,11 @@ export const DEFAULT_USER_PERMISSIONS: Permission[] = [
   PERMISSIONS.SETTINGS_READ,
 ];
 
-/** Compte administrateur initial (mot de passe hashé à la création de la base). */
-export const INITIAL_ADMIN = {
-  email: "michel@aguilera.ch",
-  name: "Michel Aguilera",
-} as const;
+/** Compte administrateur initial (créé uniquement si la base est absente). */
+export function getInitialAdmin(): { email: string; name: string } {
+  return {
+    email: process.env.PROJECTOR_ADMIN_EMAIL?.trim() || "admin@example.com",
+    name: process.env.PROJECTOR_ADMIN_NAME?.trim() || "Administrateur",
+  };
+}
+

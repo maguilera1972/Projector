@@ -79,7 +79,7 @@ export function LoginForm() {
                 autoComplete="username"
                 required
                 className="w-full rounded-lg border border-white/10 bg-brand-navy-dark px-4 py-2.5 text-white outline-none transition-colors focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/30"
-                placeholder="michel@aguilera.ch"
+                placeholder="admin@example.com"
               />
             </div>
 

@@ -12,7 +12,7 @@ import path from "path";
 import {
   ALL_PERMISSIONS,
   DEFAULT_USER_PERMISSIONS,
-  INITIAL_ADMIN,
+  getInitialAdmin,
   isUserActive,
   type AvatarDisplay,
   type DbUser,
@@ -280,8 +280,8 @@ async function loadDatabaseFromDisk(): Promise<Database> {
       users: [
         {
           id: crypto.randomUUID(),
-          email: INITIAL_ADMIN.email,
-          name: INITIAL_ADMIN.name,
+          email: getInitialAdmin().email,
+          name: getInitialAdmin().name,
           role: "admin",
           passwordHash: hashPassword(getInitialAdminPassword()),
           permissions: [...ALL_PERMISSIONS],
