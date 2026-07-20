@@ -3,15 +3,27 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev --turbopack -H 0.0.0.0 -p 3000",
+    "dev:3001": "next dev --turbopack -H 0.0.0.0 -p 3001",
+    "stop": "pkill -f 'next dev' || true",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "start:present": "next start -H 0.0.0.0 -p 3000",
+    "start:present:3001": "next start -H 0.0.0.0 -p 3001",
+    "present": "npm run build && npm run start:present",
+    "present:3001": "npm run build && npm run start:present:3001",
+    "service:restart": "systemctl --user restart projector.service",
+    "service:status": "systemctl --user status projector.service --no-pager",
+    "service:rebuild": "bash scripts/projector-rebuild-and-restart.sh",
+    "lint": "next lint",
+    "hermes:templates:install": "bash scripts/hermes/install-word-templates.sh",
+    "hermes:templates:import": "bash scripts/hermes/import-word-templates.sh",
+    "hermes:templates:verify": "python3 scripts/hermes/verify-word-templates.py"
   },
   "dependencies": {
     "clsx": "^2.1.1",
     "lucide-react": "^0.511.0",
-    "next": "^15.3.3",
+    "next": "^16.2.9",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tailwind-merge": "^3.3.0"

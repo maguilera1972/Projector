@@ -1,20 +1,85 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Shield, Users, UserCircle } from "lucide-react";
 import { Header } from "@/components/layout/header";
+import { listProjects, listPortfolios } from "@/lib/db/store";
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/permissions";
+import { canUserManageProjectMandant } from "@/lib/hermes/project-roles";
 
-export default function ParametresPage() {
+export default async function ParametresPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  const isAdmin = hasPermission(user, "admin:access");
+  const projects = await listProjects();
+  const portfolios = await listPortfolios(true);
+  const portfolioById = new Map(portfolios.map((p) => [p.id, p]));
+  const canManageMandant =
+    isAdmin ||
+    projects.some((project) => {
+      const portfolio = project.portfolioId
+        ? portfolioById.get(project.portfolioId)
+        : undefined;
+      return canUserManageProjectMandant(user, project, portfolio);
+    });
+
+  const settingsLinks = [
+    {
+      title: "Mon profil",
+      description: "Nom, e-mail, mot de passe et avatar (Gravatar ou initiales)",
+      href: "/parametres/profil",
+      icon: UserCircle,
+      visible: true,
+    },
+    {
+      title: "Administration",
+      description: isAdmin
+        ? "Utilisateurs, mandants de projet et permissions"
+        : "Assigner l'utilisateur mandant pour vos projets",
+      href: "/parametres/administration",
+      icon: Shield,
+      visible: isAdmin || canManageMandant,
+    },
+    {
+      title: "Utilisateurs",
+      description: "Consulter l'équipe et les rôles HERMES5",
+      href: "/equipe",
+      icon: Users,
+      visible: true,
+    },
+  ];
+
   return (
     <>
-      <Header title="Paramètres" subtitle="Configuration de la plateforme PROJECTOR" />
-      <main className="flex flex-1 items-center justify-center p-8">
-        <div className="max-w-md rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full gradient-brand text-2xl font-bold text-white">
-            P
-          </div>
-          <h2 className="text-lg font-semibold text-slate-900">
-            Module en développement
-          </h2>
-          <p className="mt-2 text-sm text-brand-muted">
-            Paramètres organisationnels, utilisateurs et préférences.
-          </p>
+      <Header
+        title="Paramètres"
+        subtitle="Configuration de la plateforme PROJECTOR"
+        user={user}
+      />
+
+      <main className="p-8">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {settingsLinks
+            .filter((link) => link.visible)
+            .map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="group rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-brand-indigo/40 hover:shadow-md"
+              >
+                <div className="gradient-brand mb-4 flex h-11 w-11 items-center justify-center rounded-lg">
+                  <link.icon className="h-5 w-5 text-white" />
+                </div>
+                <h2 className="text-lg font-semibold text-slate-900 group-hover:text-brand-indigo">
+                  {link.title}
+                </h2>
+                <p className="mt-2 text-sm text-brand-muted">
+                  {link.description}
+                </p>
+              </Link>
+            ))}
+
         </div>
       </main>
     </>

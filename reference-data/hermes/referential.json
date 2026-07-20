@@ -1,0 +1,548 @@
+{
+  "version": "5.1.0",
+  "source": "HERMES 5.1 — scénarios standard (structure simplifiée pour PROJECTOR)",
+  "scenarios": [
+    {
+      "id": "development-it",
+      "labelFr": "Développement IT",
+      "labelEn": "IT Development",
+      "descriptionFr": "Création d'un nouveau système informatique ou d'une solution IT.",
+      "descriptionEn": "Creation of a new IT system or IT solution.",
+      "moduleIds": [
+        "pilotage-projet",
+        "conduite-projet",
+        "bases-projet",
+        "systeme-informatique",
+        "tests",
+        "migration",
+        "exploitation",
+        "sipd",
+        "developpement-agile"
+      ]
+    },
+    {
+      "id": "adaptation-it",
+      "labelFr": "Adaptation IT",
+      "labelEn": "IT Adaptation",
+      "descriptionFr": "Modification ou extension d'un système informatique existant.",
+      "descriptionEn": "Modification or extension of an existing IT system.",
+      "moduleIds": [
+        "pilotage-projet",
+        "conduite-projet",
+        "bases-projet",
+        "systeme-informatique",
+        "tests",
+        "migration",
+        "exploitation",
+        "sipd",
+        "developpement-agile"
+      ]
+    },
+    {
+      "id": "development-product",
+      "labelFr": "Développement de la prestation/du produit",
+      "labelEn": "Product/Service Development",
+      "descriptionFr": "Création d'une nouvelle prestation ou d'un nouveau produit.",
+      "descriptionEn": "Creation of a new service or product.",
+      "moduleIds": [
+        "pilotage-projet",
+        "conduite-projet",
+        "bases-projet",
+        "produit",
+        "achat",
+        "developpement-agile"
+      ]
+    },
+    {
+      "id": "adaptation-product",
+      "labelFr": "Adaptation de la prestation/du produit",
+      "labelEn": "Product/Service Adaptation",
+      "descriptionFr": "Modification d'une prestation ou d'un produit existant.",
+      "descriptionEn": "Modification of an existing service or product.",
+      "moduleIds": [
+        "pilotage-projet",
+        "conduite-projet",
+        "bases-projet",
+        "produit",
+        "achat",
+        "developpement-agile"
+      ]
+    },
+    {
+      "id": "organization-adaptation",
+      "labelFr": "Adaptation de l'organisation",
+      "labelEn": "Organization Adaptation",
+      "descriptionFr": "Restructuration ou adaptation des structures organisationnelles.",
+      "descriptionEn": "Restructuring or adaptation of organizational structures.",
+      "moduleIds": [
+        "pilotage-projet",
+        "conduite-projet",
+        "bases-projet",
+        "structures-organisationnelles",
+        "developpement-agile"
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "id": "pilotage-projet",
+      "labelFr": "Pilotage du projet",
+      "labelEn": "Project Steering"
+    },
+    {
+      "id": "conduite-projet",
+      "labelFr": "Conduite du projet",
+      "labelEn": "Project Management"
+    },
+    {
+      "id": "bases-projet",
+      "labelFr": "Bases du projet",
+      "labelEn": "Project Foundations"
+    },
+    {
+      "id": "systeme-informatique",
+      "labelFr": "Système informatique",
+      "labelEn": "IT System"
+    },
+    {
+      "id": "produit",
+      "labelFr": "Produit",
+      "labelEn": "Product"
+    },
+    {
+      "id": "tests",
+      "labelFr": "Tests",
+      "labelEn": "Testing"
+    },
+    {
+      "id": "migration",
+      "labelFr": "Migration informatique",
+      "labelEn": "IT Migration"
+    },
+    {
+      "id": "exploitation",
+      "labelFr": "Exploitation informatique",
+      "labelEn": "IT Operations"
+    },
+    {
+      "id": "sipd",
+      "labelFr": "Sûreté de l'information et protection des données (SIPD)",
+      "labelEn": "Information Security and Data Protection (ISDP)"
+    },
+    {
+      "id": "achat",
+      "labelFr": "Achat",
+      "labelEn": "Procurement"
+    },
+    {
+      "id": "structures-organisationnelles",
+      "labelFr": "Structures organisationnelles",
+      "labelEn": "Organizational Structures"
+    },
+    {
+      "id": "developpement-agile",
+      "labelFr": "Développement agile",
+      "labelEn": "Agile Development"
+    }
+  ],
+  "taskTemplates": [
+    {
+      "id": "pp-init-checklist",
+      "moduleId": "pilotage-projet",
+      "phase": "initialisation",
+      "titleFr": "Établir la liste de contrôle",
+      "titleEn": "Prepare checklist",
+      "order": 1,
+      "approaches": ["classic", "agile"]
+    },
+    {
+      "id": "pp-init-mandat",
+      "moduleId": "pilotage-projet",
+      "phase": "initialisation",
+      "titleFr": "Rédiger le mandat de projet",
+      "titleEn": "Draft project mandate",
+      "order": 2,
+      "approaches": ["classic", "agile"]
+    },
+    {
+      "id": "pp-init-mandat-init",
+      "moduleId": "pilotage-projet",
+      "phase": "initialisation",
+      "titleFr": "Préparer le mandat d'initialisation du projet",
+      "titleEn": "Prepare project initialization mandate",
+      "order": 3,
+      "approaches": ["classic", "agile"]
+    },
+    {
+      "id": "bp-init-etude",
+      "moduleId": "bases-projet",
+      "phase": "initialisation",
+      "titleFr": "Conduire l'étude de faisabilité",
+      "titleEn": "Conduct feasibility study",
+      "order": 4,
+      "approaches": ["classic", "agile"]
+    },
+    {
+      "id": "cp-init-plan",
+      "moduleId": "conduite-projet",
+      "phase": "initialisation",
+      "titleFr": "Élaborer le plan de gestion de projet",
+      "titleEn": "Develop project management plan",
+      "order": 5,
+      "approaches": ["classic", "agile"]
+    },
+    {
+      "id": "pp-conception-decision",
+      "moduleId": "pilotage-projet",
+      "phase": "conception",
+      "titleFr": "Décision concernant le pilotage du projet",
+      "titleEn": "Project steering decision",
+      "order": 10,
+      "approaches": ["classic"]
+    },
+    {
+      "id": "cp-conception-plan",
+      "moduleId": "conduite-projet",
+      "phase": "conception",
+      "titleFr": "Planifier la phase de conception",
+      "titleEn": "Plan conception phase",
+      "order": 11,
+      "approaches": ["classic"]
+    },
+    {
+      "id": "si-conception-archi",
+      "moduleId": "systeme-informatique",
+      "phase": "conception",
+      "titleFr": "Concevoir l'architecture du système",
+      "titleEn": "Design system architecture",
+      "order": 12,
+      "approaches": ["classic"]
+    },
+    {
+      "id": "prod-conception-concept",
+      "moduleId": "produit",
+      "phase": "conception",
+      "titleFr": "Élaborer le concept de la prestation/du produit",
+      "titleEn": "Develop product/service concept",
+      "order": 12,
+      "approaches": ["classic"]
+    },
+    {
+      "id": "so-conception-concept",
+      "moduleId": "structures-organisationnelles",
+      "phase": "conception",
+      "titleFr": "Concevoir les structures organisationnelles cibles",
+      "titleEn": "Design target organizational structures",
+      "order": 12,
+      "approaches": ["classic"]
+    },
+    {
+      "id": "sipd-conception-concept",
+      "moduleId": "sipd",
+      "phase": "conception",
+      "titleFr": "Élaborer le concept SIPD",
+      "titleEn": "Develop ISDP concept",
+      "order": 13,
+      "approaches": ["classic"]
+    },
+    {
+      "id": "cp-realisation-plan",
+      "moduleId": "conduite-projet",
+      "phase": "realisation",
+      "titleFr": "Planifier la phase de réalisation",
+      "titleEn": "Plan realization phase",
+      "order": 20,
+      "approaches": ["classic"]
+    },
+    {
+      "id": "si-realisation-dev",
+      "moduleId": "systeme-informatique",
+      "phase": "realisation",
+      "titleFr": "Développer le système informatique",
+      "titleEn": "Develop IT system",
+      "order": 21,
+      "approaches": ["classic"]
+    },
+    {
+      "id": "prod-realisation-dev",
+      "moduleId": "produit",
+      "phase": "realisation",
+      "titleFr": "Réaliser la prestation/le produit",
+      "titleEn": "Implement product/service",
+      "order": 21,
+      "approaches": ["classic"]
+    },
+    {
+      "id": "tests-realisation",
+      "moduleId": "tests",
+      "phase": "realisation",
+      "titleFr": "Exécuter les tests",
+      "titleEn": "Execute tests",
+      "order": 22,
+      "approaches": ["classic"]
+    },
+    {
+      "id": "cp-deploiement-plan",
+      "moduleId": "conduite-projet",
+      "phase": "deploiement",
+      "titleFr": "Planifier le déploiement",
+      "titleEn": "Plan deployment",
+      "order": 30,
+      "approaches": ["classic"]
+    },
+    {
+      "id": "mig-deploiement",
+      "moduleId": "migration",
+      "phase": "deploiement",
+      "titleFr": "Exécuter la migration",
+      "titleEn": "Execute migration",
+      "order": 31,
+      "approaches": ["classic"]
+    },
+    {
+      "id": "exp-deploiement",
+      "moduleId": "exploitation",
+      "phase": "deploiement",
+      "titleFr": "Préparer la mise en exploitation",
+      "titleEn": "Prepare go-live",
+      "order": 32,
+      "approaches": ["classic"]
+    },
+    {
+      "id": "da-exec-sprint",
+      "moduleId": "developpement-agile",
+      "phase": "execution",
+      "titleFr": "Organiser les itérations de développement",
+      "titleEn": "Organize development iterations",
+      "order": 15,
+      "approaches": ["agile"]
+    },
+    {
+      "id": "si-exec-dev",
+      "moduleId": "systeme-informatique",
+      "phase": "execution",
+      "titleFr": "Développer la solution (itérations)",
+      "titleEn": "Develop solution (iterations)",
+      "order": 16,
+      "approaches": ["agile"]
+    },
+    {
+      "id": "prod-exec-dev",
+      "moduleId": "produit",
+      "phase": "execution",
+      "titleFr": "Développer la prestation/le produit (itérations)",
+      "titleEn": "Develop product/service (iterations)",
+      "order": 16,
+      "approaches": ["agile"]
+    },
+    {
+      "id": "so-exec-dev",
+      "moduleId": "structures-organisationnelles",
+      "phase": "execution",
+      "titleFr": "Mettre en œuvre les adaptations organisationnelles",
+      "titleEn": "Implement organizational adaptations",
+      "order": 16,
+      "approaches": ["agile"]
+    },
+    {
+      "id": "tests-exec",
+      "moduleId": "tests",
+      "phase": "execution",
+      "titleFr": "Tests continus et validation",
+      "titleEn": "Continuous testing and validation",
+      "order": 17,
+      "approaches": ["agile"]
+    },
+    {
+      "id": "pp-cloture-rapport",
+      "moduleId": "pilotage-projet",
+      "phase": "cloture",
+      "titleFr": "Rédiger le rapport de clôture du projet",
+      "titleEn": "Draft project closure report",
+      "order": 40,
+      "approaches": ["classic", "agile"]
+    },
+    {
+      "id": "cp-cloture-evaluation",
+      "moduleId": "conduite-projet",
+      "phase": "cloture",
+      "titleFr": "Conduire l'évaluation finale du projet",
+      "titleEn": "Conduct final project evaluation",
+      "order": 41,
+      "approaches": ["classic", "agile"]
+    }
+  ],
+  "qualityGates": [
+    {
+      "id": "gate-init",
+      "fromPhase": "initialisation",
+      "approaches": ["classic", "agile"],
+      "labelFr": "Libération — fin d'Initialisation",
+      "labelEn": "Release — end of Initialization",
+      "milestoneFr": "Mandat d'initialisation du projet",
+      "requiredOutcomesFr": ["Étude", "Mandat d'initialisation du projet", "Plan de gestion de projet"],
+      "requiresBudgetApproval": true
+    },
+    {
+      "id": "gate-conception",
+      "fromPhase": "conception",
+      "approaches": ["classic"],
+      "labelFr": "Libération — fin de Conception",
+      "labelEn": "Release — end of Conception",
+      "milestoneFr": "Décision sur l'option",
+      "requiredOutcomesFr": ["Plan de gestion de projet", "Architecture du système", "Concept SIPD"],
+      "requiresBudgetApproval": false
+    },
+    {
+      "id": "gate-realisation",
+      "fromPhase": "realisation",
+      "approaches": ["classic"],
+      "labelFr": "Libération — fin de Réalisation",
+      "labelEn": "Release — end of Realization",
+      "milestoneFr": "Réception préliminaire",
+      "requiredOutcomesFr": ["Rapport de phase", "Produit livrable"],
+      "requiresBudgetApproval": false
+    },
+    {
+      "id": "gate-deploiement",
+      "fromPhase": "deploiement",
+      "approaches": ["classic"],
+      "labelFr": "Libération — fin de Déploiement",
+      "labelEn": "Release — end of Deployment",
+      "milestoneFr": "Mise en exploitation",
+      "requiredOutcomesFr": ["Rapport de réception", "Mise en service"],
+      "requiresBudgetApproval": false
+    },
+    {
+      "id": "gate-execution",
+      "fromPhase": "execution",
+      "approaches": ["agile"],
+      "labelFr": "Libération — fin d'Exécution",
+      "labelEn": "Release — end of Execution",
+      "milestoneFr": "Libération de la phase",
+      "requiredOutcomesFr": ["Rapport de phase", "Incrément livré"],
+      "requiresBudgetApproval": false
+    },
+    {
+      "id": "gate-cloture",
+      "fromPhase": "cloture",
+      "approaches": ["classic", "agile"],
+      "labelFr": "Clôture du projet",
+      "labelEn": "Project closure",
+      "milestoneFr": "Clôture du projet",
+      "requiredOutcomesFr": ["Évaluation finale du projet", "Rapport de clôture"],
+      "requiresBudgetApproval": false,
+      "isTerminal": true
+    }
+  ],
+  "documentTemplates": [
+    {
+      "id": "hermes-etude",
+      "outcomeKeysFr": ["Étude"],
+      "phases": ["initialisation"],
+      "titleFr": "Étude de faisabilité",
+      "titleEn": "Feasibility study",
+      "bodyFr": "# Étude de faisabilité\n\n**Projet :** {{project.name}}\n**Scénario HERMES :** {{scenario.label}}\n**Approche :** {{approach.label}}\n\n## Contexte\n{{project.description}}\n\n## Organisation projet\n| Rôle | Personne |\n|------|----------|\n| Mandant | {{project.mandant}} |\n| Chef de projet | {{project.chefDeProjet}} |\n\n## Budget global estimé\n- Montant : {{project.budgetFormatted}}\n- Carnet d'heures : {{project.budgetHoursFormatted}}\n- Statut validation : {{project.budgetStatusLabel}}\n\n## Période\nDu {{project.startDate}} au {{project.endDate}}\n\n## Tâches — phase {{phase.label}}\n{{phase.tasksList}}\n\n## Avancement\n{{project.progress}} % ({{project.tasksCompleted}}/{{project.tasksTotal}} tâches terminées)\n\n---\n*Sections [à compléter] selon le gabarit HERMES 5.1 officiel.*\n\nDocument généré le {{generatedAt}} — PROJECTOR / HERMES {{hermes.version}}",
+      "bodyEn": "# Feasibility study\n\n**Project:** {{project.name}}\n**HERMES scenario:** {{scenario.label}}\n**Approach:** {{approach.label}}\n\n## Context\n{{project.description}}\n\n## Project organisation\n| Role | Person |\n|------|--------|\n| Sponsor | {{project.mandant}} |\n| Project manager | {{project.chefDeProjet}} |\n\n## Estimated global budget\n- Amount: {{project.budgetFormatted}}\n- Hour package: {{project.budgetHoursFormatted}}\n- Approval status: {{project.budgetStatusLabel}}\n\n## Period\nFrom {{project.startDate}} to {{project.endDate}}\n\n## Tasks — {{phase.label}} phase\n{{phase.tasksList}}\n\n## Progress\n{{project.progress}}% ({{project.tasksCompleted}}/{{project.tasksTotal}} tasks completed)\n\n---\n*[To be completed] sections per official HERMES 5.1 template.*\n\nDocument generated on {{generatedAt}} — PROJECTOR / HERMES {{hermes.version}}"
+    },
+    {
+      "id": "hermes-mandat-init",
+      "outcomeKeysFr": ["Mandat d'initialisation du projet"],
+      "phases": ["initialisation"],
+      "titleFr": "Mandat d'initialisation du projet",
+      "titleEn": "Project initialization mandate",
+      "bodyFr": "# Mandat d'initialisation du projet\n\n**Projet :** {{project.name}}\n**Jalon HERMES :** {{gate.milestone}}\n\n## Objectifs et périmètre\n{{project.description}}\n\n## Mandant\n{{project.mandant}}\n\n## Chef de projet\n{{project.chefDeProjet}}\n\n## Budget et forfait\n{{project.budgetFormatted}} — {{project.budgetHoursFormatted}}\n\n## Validation mandant\n{{validation.signature}}\nDate : {{validation.date}}\n\n---\n*[à compléter]* — Gabarit HERMES 5.1\n\nGénéré le {{generatedAt}}",
+      "bodyEn": "# Project initialization mandate\n\n**Project:** {{project.name}}\n**HERMES milestone:** {{gate.milestone}}\n\n## Objectives and scope\n{{project.description}}\n\n## Sponsor\n{{project.mandant}}\n\n## Project manager\n{{project.chefDeProjet}}\n\n## Budget\n{{project.budgetFormatted}} — {{project.budgetHoursFormatted}}\n\n## Sponsor approval\n{{validation.signature}}\nDate: {{validation.date}}\n\n---\n*[To be completed]* — HERMES 5.1 template\n\nGenerated on {{generatedAt}}"
+    },
+    {
+      "id": "hermes-plan-gestion",
+      "outcomeKeysFr": ["Plan de gestion de projet"],
+      "phases": ["initialisation", "conception"],
+      "titleFr": "Plan de gestion de projet",
+      "titleEn": "Project management plan",
+      "bodyFr": "# Plan de gestion de projet\n\n**Projet :** {{project.name}}\n**Phase :** {{phase.label}}\n\n## Description\n{{project.description}}\n\n## Équipe de direction\n- Mandant : {{project.mandant}}\n- Chef de projet : {{project.chefDeProjet}}\n\n## Planning — tâches phase {{phase.label}}\n{{phase.tasksList}}\n\n## Budget\n{{project.budgetFormatted}} ({{project.budgetStatusLabel}})\n\n---\n*[à compléter]*\n\nGénéré le {{generatedAt}}",
+      "bodyEn": "# Project management plan\n\n**Project:** {{project.name}}\n**Phase:** {{phase.label}}\n\n## Description\n{{project.description}}\n\n## Steering team\n- Sponsor: {{project.mandant}}\n- Project manager: {{project.chefDeProjet}}\n\n## Schedule — {{phase.label}} phase tasks\n{{phase.tasksList}}\n\n## Budget\n{{project.budgetFormatted}} ({{project.budgetStatusLabel}})\n\n---\n*[To be completed]*\n\nGenerated on {{generatedAt}}"
+    },
+    {
+      "id": "hermes-architecture",
+      "outcomeKeysFr": ["Architecture du système"],
+      "phases": ["conception"],
+      "titleFr": "Architecture du système",
+      "titleEn": "System architecture",
+      "bodyFr": "# Architecture du système\n\n**Projet :** {{project.name}}\n\n## Contexte\n{{project.description}}\n\n---\n*[à compléter]* — Schémas et décisions d'architecture.\n\nGénéré le {{generatedAt}}",
+      "bodyEn": "# System architecture\n\n**Project:** {{project.name}}\n\n## Context\n{{project.description}}\n\n---\n*[To be completed]* — Architecture diagrams and decisions.\n\nGenerated on {{generatedAt}}"
+    },
+    {
+      "id": "hermes-concept-sipd",
+      "outcomeKeysFr": ["Concept SIPD"],
+      "phases": ["conception"],
+      "titleFr": "Concept SIPD / protection des données",
+      "titleEn": "ISDS / data protection concept",
+      "bodyFr": "# Concept SIPD\n\n**Projet :** {{project.name}}\n\n---\n*[à compléter]* — Analyse SIPD selon HERMES 5.1.\n\nGénéré le {{generatedAt}}",
+      "bodyEn": "# ISDS concept\n\n**Project:** {{project.name}}\n\n---\n*[To be completed]* — ISDS analysis per HERMES 5.1.\n\nGenerated on {{generatedAt}}"
+    },
+    {
+      "id": "hermes-rapport-phase",
+      "outcomeKeysFr": ["Rapport de phase"],
+      "phases": ["initialisation", "conception", "realisation", "deploiement", "execution"],
+      "titleFr": "Rapport de phase",
+      "titleEn": "Phase report",
+      "bodyFr": "# Rapport de phase — {{phase.label}}\n\n**Projet :** {{project.name}}\n**Transition :** {{phase.label}} → {{phase.nextLabel}}\n**Jalon :** {{gate.milestone}}\n\n## Résumé\nAvancement global : {{project.progress}} %\n\n## Tâches de la phase\n{{phase.tasksList}}\n\n## Validation\nSignature mandant : {{validation.signature}}\nDate : {{validation.date}}\nMode : {{validation.mode}}\n\n---\n*[à compléter]* — Rapport d'état HERMES.\n\nGénéré le {{generatedAt}} — version {{document.version}}",
+      "bodyEn": "# Phase report — {{phase.label}}\n\n**Project:** {{project.name}}\n**Transition:** {{phase.label}} → {{phase.nextLabel}}\n**Milestone:** {{gate.milestone}}\n\n## Summary\nOverall progress: {{project.progress}}%\n\n## Phase tasks\n{{phase.tasksList}}\n\n## Validation\nSponsor signature: {{validation.signature}}\nDate: {{validation.date}}\nMode: {{validation.mode}}\n\n---\n*[To be completed]* — HERMES status report.\n\nGenerated on {{generatedAt}} — version {{document.version}}"
+    },
+    {
+      "id": "hermes-produit-livrable",
+      "outcomeKeysFr": ["Produit livrable"],
+      "phases": ["realisation"],
+      "titleFr": "Produit livrable",
+      "titleEn": "Deliverable product",
+      "bodyFr": "# Produit livrable\n\n**Projet :** {{project.name}}\n**Phase :** {{phase.label}}\n\n---\n*[à compléter]*\n\nGénéré le {{generatedAt}}",
+      "bodyEn": "# Deliverable product\n\n**Project:** {{project.name}}\n**Phase:** {{phase.label}}\n\n---\n*[To be completed]*\n\nGenerated on {{generatedAt}}"
+    },
+    {
+      "id": "hermes-rapport-reception",
+      "outcomeKeysFr": ["Rapport de réception"],
+      "phases": ["deploiement"],
+      "titleFr": "Rapport de réception",
+      "titleEn": "Acceptance report",
+      "bodyFr": "# Rapport de réception\n\n**Projet :** {{project.name}}\n\n---\n*[à compléter]*\n\nGénéré le {{generatedAt}}",
+      "bodyEn": "# Acceptance report\n\n**Project:** {{project.name}}\n\n---\n*[To be completed]*\n\nGenerated on {{generatedAt}}"
+    },
+    {
+      "id": "hermes-mise-en-service",
+      "outcomeKeysFr": ["Mise en service"],
+      "phases": ["deploiement"],
+      "titleFr": "Mise en service",
+      "titleEn": "Go-live",
+      "bodyFr": "# Mise en service\n\n**Projet :** {{project.name}}\n\n---\n*[à compléter]*\n\nGénéré le {{generatedAt}}",
+      "bodyEn": "# Go-live\n\n**Project:** {{project.name}}\n\n---\n*[To be completed]*\n\nGenerated on {{generatedAt}}"
+    },
+    {
+      "id": "hermes-increment",
+      "outcomeKeysFr": ["Incrément livré"],
+      "phases": ["execution"],
+      "titleFr": "Incrément livré",
+      "titleEn": "Delivered increment",
+      "bodyFr": "# Incrément livré\n\n**Projet :** {{project.name}}\n**Approche agile**\n\n---\n*[à compléter]*\n\nGénéré le {{generatedAt}}",
+      "bodyEn": "# Delivered increment\n\n**Project:** {{project.name}}\n**Agile approach**\n\n---\n*[To be completed]*\n\nGenerated on {{generatedAt}}"
+    },
+    {
+      "id": "hermes-evaluation-finale",
+      "outcomeKeysFr": ["Évaluation finale du projet"],
+      "phases": ["cloture"],
+      "titleFr": "Évaluation finale du projet",
+      "titleEn": "Final project evaluation",
+      "bodyFr": "# Évaluation finale du projet\n\n**Projet :** {{project.name}}\n\n## Bilan\nAvancement : {{project.progress}} %\n\n---\n*[à compléter]*\n\nGénéré le {{generatedAt}}",
+      "bodyEn": "# Final project evaluation\n\n**Project:** {{project.name}}\n\n## Summary\nProgress: {{project.progress}}%\n\n---\n*[To be completed]*\n\nGenerated on {{generatedAt}}"
+    },
+    {
+      "id": "hermes-rapport-cloture",
+      "outcomeKeysFr": ["Rapport de clôture"],
+      "phases": ["cloture"],
+      "titleFr": "Rapport de clôture",
+      "titleEn": "Closure report",
+      "bodyFr": "# Rapport de clôture\n\n**Projet :** {{project.name}}\n\n## Validation finale\n{{validation.signature}} — {{validation.date}}\n\n---\n*[à compléter]*\n\nGénéré le {{generatedAt}}",
+      "bodyEn": "# Closure report\n\n**Project:** {{project.name}}\n\n## Final validation\n{{validation.signature}} — {{validation.date}}\n\n---\n*[To be completed]*\n\nGenerated on {{generatedAt}}"
+    }
+  ]
+}

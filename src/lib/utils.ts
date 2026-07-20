@@ -5,12 +5,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const DISPLAY_TIME_ZONE = "Europe/Zurich";
+
 export function formatDate(date: string | Date): string {
+  const parsed =
+    typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
+      ? new Date(`${date}T12:00:00.000Z`)
+      : typeof date === "string"
+        ? new Date(date)
+        : date;
+
   return new Intl.DateTimeFormat("fr-CH", {
     day: "numeric",
     month: "short",
     year: "numeric",
-  }).format(typeof date === "string" ? new Date(date) : date);
+    timeZone: DISPLAY_TIME_ZONE,
+  }).format(parsed);
 }
 
 export function getPhaseProgress(completed: number, total: number): number {

@@ -1,0 +1,23 @@
+[Unit]
+Description=PROJECTOR — gestion de projets HERMES5 (Next.js)
+Documentation=https://git.aguilera.ch/Aguilera_Lab/Projector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adapter ce chemin à l'installation locale
+WorkingDirectory=/opt/projector
+Environment=NODE_ENV=production
+Environment=PORT=3001
+Environment=HOME=%h
+EnvironmentFile=-/opt/projector/.env.local
+ExecStart=/opt/projector/scripts/projector-start.sh
+Restart=always
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=30
+MemoryMax=2G
+
+[Install]
+WantedBy=default.target

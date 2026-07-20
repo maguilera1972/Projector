@@ -30,8 +30,22 @@ yarn-error.log*
 
 # env files
 .env*.local
+.local/
 .env
+
+# local database
+/data/
+/generated-documents/
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python
+__pycache__/
+*.py[cod]
+
+# OS / IDE
+.idea/
+.vscode/
+*.swp

@@ -1,11 +1,17 @@
+import { redirect } from "next/navigation";
 import { Header } from "@/components/layout/header";
+import { getSessionUser } from "@/lib/auth/session";
 
-export default function RapportsPage() {
+export default async function RapportsPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
   return (
     <>
       <Header
         title="Rapports"
         subtitle="Indicateurs, tableaux de bord et rapports d'avancement"
+        user={user}
       />
       <main className="flex flex-1 items-center justify-center p-8">
         <div className="max-w-md rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">

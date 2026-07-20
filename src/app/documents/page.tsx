@@ -1,24 +1,38 @@
+import { redirect } from "next/navigation";
 import { Header } from "@/components/layout/header";
+import { ProjectDocumentFolders } from "@/components/project/project-document-folders";
+import { DocumentsIndexExport } from "@/components/project/pdf-export-bar";
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
+import { listProjectGeneratedDocumentSummaries } from "@/lib/db/store";
 
-export default function DocumentsPage() {
+export default async function DocumentsPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  if (!hasPermission(user, PERMISSIONS.DOCUMENTS_READ)) {
+    redirect("/");
+  }
+
+  const projects = await listProjectGeneratedDocumentSummaries();
+  const totalDocuments = projects.reduce(
+    (sum, project) => sum + project.documentCount,
+    0,
+  );
+
   return (
     <>
       <Header
         title="Documents"
-        subtitle="Livrables et résultats HERMES5 (mandat, cahier des charges, rapports...)"
+        subtitle="Livrables HERMES générés automatiquement à la validation de phase"
+        user={user}
       />
-      <main className="flex flex-1 items-center justify-center p-8">
-        <div className="max-w-md rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full gradient-brand text-2xl font-bold text-white">
-            P
-          </div>
-          <h2 className="text-lg font-semibold text-slate-900">
-            Module en développement
-          </h2>
-          <p className="mt-2 text-sm text-brand-muted">
-            Gestion documentaire conforme aux modèles HERMES5.
-          </p>
-        </div>
+      <main className="p-8">
+        <DocumentsIndexExport
+          projectCount={projects.length}
+          documentCount={totalDocuments}
+        />
+        <ProjectDocumentFolders projects={projects} />
       </main>
     </>
   );

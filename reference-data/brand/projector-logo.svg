@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 48" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#7dd3fc"/>
+      <stop offset="50%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(24,24)">
+    <circle cx="0" cy="0" r="20" stroke="url(#g)" stroke-width="2.2" fill="none" stroke-dasharray="26 8 18 6 22 10" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="15" stroke="url(#g)" stroke-width="1.8" fill="none" stroke-dasharray="20 6 14 5 18 8" stroke-linecap="round" opacity="0.85"/>
+    <circle cx="0" cy="0" r="10" stroke="url(#g)" stroke-width="1.4" fill="none" stroke-dasharray="14 5 10 4 12 6" stroke-linecap="round" opacity="0.7"/>
+    <line x1="0" y1="-20" x2="0" y2="-12" stroke="url(#g)" stroke-width="2" stroke-linecap="round"/>
+    <line x1="20" y1="0" x2="12" y2="0" stroke="url(#g)" stroke-width="2" stroke-linecap="round"/>
+    <line x1="0" y1="20" x2="0" y2="12" stroke="url(#g)" stroke-width="2" stroke-linecap="round"/>
+    <line x1="-20" y1="0" x2="-12" y2="0" stroke="url(#g)" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="4.5" fill="url(#g)"/>
+  </g>
+  <text x="58" y="32" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" letter-spacing="3" fill="url(#g)">PROJECTOR</text>
+</svg>

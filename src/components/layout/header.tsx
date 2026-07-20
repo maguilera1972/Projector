@@ -1,13 +1,28 @@
 "use client";
 
-import { Bell, Search, Plus } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { LogOut, Search } from "lucide-react";
+import { CreateProjectButton } from "@/components/project/create-project-button";
+import { NotificationBell } from "@/components/layout/notification-bell";
+import { UserAvatar } from "@/components/user/user-avatar";
+import type { SessionUser } from "@/lib/auth/permissions";
 
 interface HeaderProps {
   title: string;
   subtitle?: string;
+  user: SessionUser | null;
 }
 
-export function Header({ title, subtitle }: HeaderProps) {
+export function Header({ title, subtitle, user }: HeaderProps) {
+  const router = useRouter();
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
+
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur-md">
       <div className="flex h-16 items-center justify-between px-8">
@@ -28,26 +43,42 @@ export function Header({ title, subtitle }: HeaderProps) {
             />
           </div>
 
-          <button
-            type="button"
-            className="gradient-brand flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium text-white shadow-md transition-opacity hover:opacity-90"
+          <CreateProjectButton user={user} />
+
+          {user && <NotificationBell />}
+
+          <Link
+            href="/parametres/profil"
+            className="hidden text-right sm:block hover:opacity-80"
+            title="Mon profil"
           >
-            <Plus className="h-4 w-4" />
-            Nouveau projet
-          </button>
+            <p className="text-sm font-medium text-slate-900">{user?.name}</p>
+            <p className="text-xs text-brand-muted">{user?.email}</p>
+          </Link>
+
+          {user ? (
+            <Link href="/parametres/profil" title="Mon profil">
+              <UserAvatar
+                name={user.name}
+                email={user.email}
+                avatarDisplay={user.avatarDisplay}
+                size="md"
+              />
+            </Link>
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-500">
+              ?
+            </div>
+          )}
 
           <button
             type="button"
-            className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50"
-            aria-label="Notifications"
+            onClick={handleLogout}
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50"
+            aria-label="Se déconnecter"
           >
-            <Bell className="h-5 w-5" />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-brand-purple" />
+            <LogOut className="h-5 w-5" />
           </button>
-
-          <div className="flex h-10 w-10 items-center justify-center rounded-full gradient-brand text-sm font-bold text-white">
-            MA
-          </div>
         </div>
       </div>
     </header>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
+  Briefcase,
   FolderKanban,
   CheckSquare,
   Users,
@@ -11,12 +12,15 @@ import {
   BarChart3,
   Settings,
   HelpCircle,
+  Shield,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
+import { hasPermission, type SessionUser } from "@/lib/auth/permissions";
 
 const navigation = [
   { name: "Tableau de bord", href: "/", icon: LayoutDashboard },
+  { name: "Portfolios", href: "/portfolios", icon: Briefcase },
   { name: "Projets", href: "/projets", icon: FolderKanban },
   { name: "Tâches", href: "/taches", icon: CheckSquare },
   { name: "Équipe", href: "/equipe", icon: Users },
@@ -29,8 +33,19 @@ const secondaryNav = [
   { name: "Aide HERMES5", href: "/aide", icon: HelpCircle },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  user: SessionUser | null;
+  showAdministration?: boolean;
+}
+
+export function Sidebar({
+  user,
+  showAdministration = false,
+}: SidebarProps) {
   const pathname = usePathname();
+  const showAdmin =
+    user &&
+    (hasPermission(user, "admin:access") || showAdministration);
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-brand-navy-dark">
@@ -91,6 +106,21 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {showAdmin && (
+          <Link
+            href="/parametres/administration"
+            className={cn(
+              "group mt-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+              pathname.startsWith("/parametres/administration")
+                ? "bg-white/10 text-white"
+                : "text-slate-400 hover:bg-white/5 hover:text-white",
+            )}
+          >
+            <Shield className="h-5 w-5 shrink-0" />
+            Administration
+          </Link>
+        )}
       </nav>
 
       <div className="border-t border-white/10 p-4">

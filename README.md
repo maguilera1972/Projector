@@ -1,74 +1,148 @@
 # PROJECTOR
 
-Plateforme de gestion de projets conforme à la **méthode HERMES5** (norme eCH-0054).
+Plateforme de gestion de projets conforme à la **méthode HERMES 5.1** (norme eCH-0054).
 
-## Stack technique
+**Dépôt :** [https://git.aguilera.ch/Aguilera_Lab/Projector](https://git.aguilera.ch/Aguilera_Lab/Projector)
 
-- **Next.js 15** (App Router) + **React 19**
-- **TypeScript**
-- **Tailwind CSS 4**
-- **Lucide React** (icônes)
+## Stack
 
-## Charte graphique
+- Next.js 16 (App Router) + React 19 + TypeScript
+- Tailwind CSS 4
+- Stockage local JSON (`data/projector.json` ou chemin configurable)
+- Génération de documents Word HERMES (Python 3)
 
-| Élément | Code couleur |
-|---------|-------------|
-| Fond sidebar | `#0f172a` |
-| Navy principal | `#1e293b` |
-| Cyan (gradient) | `#7dd3fc` |
-| Indigo (gradient) | `#818cf8` |
-| Violet (gradient) | `#a855f7` |
+## Prérequis
 
-Le logo SVG reprend le style labyrinthe/circuit du logo PROJECTOR avec le dégradé cyan → indigo → violet.
+- Node.js 20+ (22 recommandé)
+- npm 9+
+- Python 3 (pour la génération des fichiers `.docx` HERMES)
 
-## Démarrage
+## Installation rapide
 
 ```bash
-cd projector
+git clone https://git.aguilera.ch/Aguilera_Lab/Projector.git
+cd Projector
 npm install
+cp .env.example .env.local
+```
+
+Éditez `.env.local` :
+
+```bash
+# Obligatoire en production — générez une valeur aléatoire longue
+PROJECTOR_SECRET=$(openssl rand -hex 32)
+
+# URL publique si derrière HTTPS / reverse proxy
+# PROJECTOR_PUBLIC_URL=https://projector.example.com
+# PROJECTOR_COOKIE_SECURE=true
+
+# Mot de passe du compte admin créé au premier démarrage (optionnel)
+# PROJECTOR_ADMIN_PASSWORD=ChangezMoi
+```
+
+### Mode développement
+
+```bash
 npm run dev
 ```
 
 Ouvrir [http://localhost:3000](http://localhost:3000).
 
-## Structure du projet
+### Mode production
+
+```bash
+npm run build
+npm run start
+# ou sur le port 3001 :
+npm run start:present:3001
+```
+
+### Service systemd (redémarrage auto)
+
+Un exemple est fourni dans `deploy/projector.service`.  
+Scripts utiles :
+
+```bash
+npm run service:rebuild   # build + restart (si service utilisateur installé)
+npm run service:status
+npm run service:restart
+```
+
+Installation typique du service utilisateur :
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp deploy/projector.service ~/.config/systemd/user/
+# Adapter WorkingDirectory / chemins dans le fichier
+systemctl --user daemon-reload
+systemctl --user enable --now projector.service
+loginctl enable-linger "$USER"
+```
+
+## Premier compte
+
+Au premier démarrage (base absente), un administrateur est créé :
+
+| Champ | Valeur |
+|--------|--------|
+| E-mail | `michel@aguilera.ch` |
+| Mot de passe | variable `PROJECTOR_ADMIN_PASSWORD`, sinon valeur par défaut du code |
+
+Changez ce mot de passe après la première connexion (Profil).
+
+Les données sont stockées dans :
+
+- `data/projector.json` si le dossier est accessible en écriture
+- sinon `.local/projector-data/projector.json` (automatique)
+
+Vous pouvez forcer le chemin avec `PROJECTOR_DB_FILE`.
+
+## Templates Word HERMES
+
+```bash
+npm run hermes:templates:install   # si applicable à votre environnement
+npm run hermes:templates:verify
+```
+
+Les gabarits et le référentiel sont sous `reference-data/` et `scripts/hermes/`.
+
+## Structure
 
 ```
 src/
-├── app/              # Pages (App Router)
-│   ├── page.tsx      # Tableau de bord
-│   ├── projets/      # Liste et détail des projets
-│   ├── taches/       # Suivi des tâches
-│   └── ...
-├── components/
-│   ├── layout/       # Sidebar, Header, AppShell
-│   ├── project/      # Composants métier projets
-│   └── ui/           # Composants UI réutilisables
-├── lib/              # Utilitaires et données mock
-└── types/            # Types TypeScript (HERMES5)
+├── app/                 # Pages et routes API
+├── components/          # UI (admin, projets, tâches, …)
+├── lib/                 # Auth, store JSON, HERMES, documents
+└── types/               # Types TypeScript
+deploy/                  # Exemples de déploiement
+scripts/                 # Démarrage, HERMES, rebuild service
+docs/                    # Cahier des charges
 ```
 
-## Fonctionnalités (v0.1)
+## Fonctionnalités principales
 
-- Tableau de bord avec statistiques
-- Liste et détail des projets
-- Timeline des phases HERMES5
-- Suivi des tâches par module
-- Navigation vers modules futurs (équipe, documents, rapports)
+- Authentification, profil, administration (utilisateurs, projets, portfolios)
+- Projets HERMES 5.1 (approche classique / agile), phases, quality gates
+- Tâches, planning, dépendances, baselines
+- Documents générés (Word / aperçu / PDF), notifications in-app
+- Portfolios et affectation mandant
 
 ## Documentation
 
-- `docs/cahier-des-charges-gestion-projets-hermes5.md` — Spécifications fonctionnelles
-- `agents.md` — Instructions pour les agents IA de développement
+- `docs/cahier-des-charges-gestion-projets-hermes5.md` — spécifications
+- `agents.md` — consignes pour agents de développement
+- `.env.example` — variables d’environnement
 
-## Prochaines étapes
+## Cloner / mettre à jour
 
-1. Copier vos fichiers de spécification dans `docs/` et `agents.md`
-2. Connecter une base de données (PostgreSQL recommandé)
-3. Implémenter l'authentification
-4. Développer les modules HERMES5 (Achat, Exigences, Qualité, Risques...)
-5. Gestion documentaire des livrables
+```bash
+git clone https://git.aguilera.ch/Aguilera_Lab/Projector.git
+cd Projector
+git pull origin main
+npm install
+npm run build
+```
 
 ## Licence
 
-Projet privé — Aguilera
+Aguilera Lab — usage selon les règles de l’organisation.

@@ -1,13 +1,19 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Header } from "@/components/layout/header";
-import { HERMES_PHASES } from "@/types";
+import { getSessionUser } from "@/lib/auth/session";
+import { HERMES_REFERENCE_PHASES } from "@/lib/hermes/phases";
 
-export default function AidePage() {
+export default async function AidePage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
   return (
     <>
       <Header
         title="Aide HERMES5"
         subtitle="Référence méthodologique eCH-0054"
+        user={user}
       />
       <main className="p-8">
         <div className="mx-auto max-w-3xl space-y-8">
@@ -22,7 +28,7 @@ export default function AidePage() {
               et de développement de services.
             </p>
             <Link
-              href="https://www.hermes.admin.ch/hermes5/fr/"
+              href="https://www.hermes.admin.ch/fr/gestion-de-projet/apercu-de-la-methode.html"
               target="_blank"
               rel="noopener noreferrer"
               className="mt-4 inline-block text-sm font-medium text-brand-indigo hover:underline"
@@ -36,7 +42,7 @@ export default function AidePage() {
               Phases du cycle de vie
             </h2>
             <ol className="mt-4 space-y-4">
-              {HERMES_PHASES.map((phase) => (
+              {HERMES_REFERENCE_PHASES.map((phase) => (
                 <li key={phase.id} className="flex gap-4">
                   <span className="gradient-brand flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white">
                     {phase.order}

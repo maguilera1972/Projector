@@ -4,7 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { formatDate } from "@/lib/utils";
 import {
-  HERMES_PHASES,
+  getPhaseLabel,
+  HERMES_APPROACH_LABELS,
+} from "@/lib/hermes/phases";
+import {
   PROJECT_STATUS_LABELS,
   type Project,
   type ProjectStatus,
@@ -25,7 +28,7 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project }: ProjectCardProps) {
-  const phase = HERMES_PHASES.find((p) => p.id === project.currentPhase);
+  const phaseLabel = getPhaseLabel(project.currentPhase, project.approach);
 
   return (
     <Link
@@ -41,19 +44,32 @@ export function ProjectCard({ project }: ProjectCardProps) {
             <Badge variant={statusVariant[project.status]}>
               {PROJECT_STATUS_LABELS[project.status]}
             </Badge>
+            <Badge variant="muted">
+              {HERMES_APPROACH_LABELS[project.approach]}
+            </Badge>
           </div>
           <p className="mt-2 line-clamp-2 text-sm text-brand-muted">
-            {project.description}
+            {project.description || "—"}
           </p>
         </div>
         <ArrowRight className="h-5 w-5 shrink-0 text-slate-300 transition-transform group-hover:translate-x-1 group-hover:text-brand-indigo" />
       </div>
 
       <div className="mt-4 flex flex-wrap gap-4 text-xs text-brand-muted">
-        <span>Phase : <strong className="text-slate-700">{phase?.label}</strong></span>
-        <span>Chef de projet : <strong className="text-slate-700">{project.chefDeProjet}</strong></span>
+        <span>
+          Phase : <strong className="text-slate-700">{phaseLabel}</strong>
+        </span>
+        <span>
+          Chef de projet :{" "}
+          <strong className="text-slate-700">{project.chefDeProjet}</strong>
+        </span>
         {project.endDate && (
-          <span>Échéance : <strong className="text-slate-700">{formatDate(project.endDate)}</strong></span>
+          <span>
+            Échéance :{" "}
+            <strong className="text-slate-700">
+              {formatDate(project.endDate)}
+            </strong>
+          </span>
         )}
       </div>
 
@@ -62,7 +78,9 @@ export function ProjectCard({ project }: ProjectCardProps) {
       </div>
 
       <div className="mt-3 flex justify-between text-xs text-brand-muted">
-        <span>{project.tasksCompleted} / {project.tasksTotal} tâches</span>
+        <span>
+          {project.tasksCompleted} / {project.tasksTotal} tâches
+        </span>
         {project.budget && (
           <span>Budget : {project.budget.toLocaleString("fr-CH")} CHF</span>
         )}

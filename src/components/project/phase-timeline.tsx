@@ -1,19 +1,26 @@
-import { HERMES_PHASES, type HermesPhaseId } from "@/types";
+import { getPhasesForApproach, getPhaseLabel } from "@/lib/hermes/phases";
+import type { HermesApproach, HermesPhaseId } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface PhaseTimelineProps {
   currentPhase: HermesPhaseId;
+  approach: HermesApproach;
   className?: string;
 }
 
-export function PhaseTimeline({ currentPhase, className }: PhaseTimelineProps) {
+export function PhaseTimeline({
+  currentPhase,
+  approach,
+  className,
+}: PhaseTimelineProps) {
+  const phases = getPhasesForApproach(approach);
   const currentOrder =
-    HERMES_PHASES.find((p) => p.id === currentPhase)?.order ?? 1;
+    phases.find((p) => p.id === currentPhase)?.order ?? 1;
 
   return (
     <div className={cn("w-full", className)}>
       <div className="flex items-center justify-between">
-        {HERMES_PHASES.map((phase, index) => {
+        {phases.map((phase, index) => {
           const isCompleted = phase.order < currentOrder;
           const isCurrent = phase.id === currentPhase;
           const isUpcoming = phase.order > currentOrder;
@@ -25,8 +32,10 @@ export function PhaseTimeline({ currentPhase, className }: PhaseTimelineProps) {
                   className={cn(
                     "flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold transition-all",
                     isCompleted && "gradient-brand text-white",
-                    isCurrent && "gradient-brand text-white ring-4 ring-brand-indigo/30",
-                    isUpcoming && "border-2 border-slate-200 bg-white text-slate-400",
+                    isCurrent &&
+                      "gradient-brand text-white ring-4 ring-brand-indigo/30",
+                    isUpcoming &&
+                      "border-2 border-slate-200 bg-white text-slate-400",
                   )}
                 >
                   {phase.order}
@@ -40,11 +49,13 @@ export function PhaseTimeline({ currentPhase, className }: PhaseTimelineProps) {
                   {phase.label}
                 </p>
               </div>
-              {index < HERMES_PHASES.length - 1 && (
+              {index < phases.length - 1 && (
                 <div
                   className={cn(
                     "mx-2 h-0.5 flex-1",
-                    phase.order < currentOrder ? "gradient-brand" : "bg-slate-200",
+                    phase.order < currentOrder
+                      ? "gradient-brand"
+                      : "bg-slate-200",
                   )}
                 />
               )}
@@ -55,3 +66,5 @@ export function PhaseTimeline({ currentPhase, className }: PhaseTimelineProps) {
     </div>
   );
 }
+
+export { getPhaseLabel };
