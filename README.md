@@ -2,7 +2,7 @@
 
 Plateforme de gestion de projets conforme à la **méthode HERMES 5.1** (norme eCH-0054).
 
-**Dépôt :** [https://git.aguilera.ch/Aguilera_Lab/Projector](https://git.aguilera.ch/Aguilera_Lab/Projector)
+**Dépôt :** [https://gitlab.aguilera.ch/Aguilera_Lab/Projector](https://gitlab.aguilera.ch/Aguilera_Lab/Projector)
 
 ## Stack
 
@@ -20,7 +20,7 @@ Plateforme de gestion de projets conforme à la **méthode HERMES 5.1** (norme e
 ## Installation rapide
 
 ```bash
-git clone https://git.aguilera.ch/Aguilera_Lab/Projector.git
+git clone https://gitlab.aguilera.ch/Aguilera_Lab/Projector.git
 cd Projector
 npm install
 cp .env.example .env.local
@@ -137,33 +137,40 @@ docs/                    # Cahier des charges
 ## Cloner / mettre à jour
 
 ```bash
-git clone https://git.aguilera.ch/Aguilera_Lab/Projector.git
+git clone https://gitlab.aguilera.ch/Aguilera_Lab/Projector.git
 cd Projector
 git pull origin main
 npm install
 npm run build
 ```
 
-## Publier des changements vers Gitea
+## Publier des changements vers GitLab
 
-Sur la machine de développement, le script `scripts/publish-to-gitea.sh` pousse la branche `main` vers  
-`https://git.aguilera.ch/Aguilera_Lab/Projector.git`.
+Le dépôt principal est sur GitLab : `https://gitlab.aguilera.ch/Aguilera_Lab/Projector.git` (remote `origin`).
+Le script `scripts/publish-to-gitlab.sh` committe les changements et pousse la branche `main`.
 
-Prérequis (jeton **non versionné**) :
+Prérequis (jeton GitLab **non versionné**, portée `write_repository`) :
 
 ```bash
-mkdir -p .local
-echo 'VOTRE_JETON_GITEA' > .local/gitea-token
-chmod 600 .local/gitea-token
-# ou : export GITEA_TOKEN=...
+mkdir -p ~/.config/gitlab
+echo 'VOTRE_JETON_GITLAB' > ~/.config/gitlab/personal_access_token
+chmod 600 ~/.config/gitlab/personal_access_token
+# ou : export GITLAB_TOKEN=...
 ```
 
 ```bash
-./scripts/publish-to-gitea.sh "Message de commit"
+./scripts/publish-to-gitlab.sh --dry-run "Message de commit"   # vérification
+./scripts/publish-to-gitlab.sh "Message de commit"             # tout l'arbre (hors exclusions)
+./scripts/publish-to-gitlab.sh "Message" -- src/x.ts CHANGELOG.md  # chemins ciblés
 ```
 
-Avec l’agent Cursor : ajoutez à votre demande de modification une phrase du type  
-« et publie sur Gitea » / « mets à jour le dépôt » — la publication est alors faite automatiquement en fin de tâche.
+Chaque publication s'accompagne d'une entrée dans `CHANGELOG.md` (section du jour, en français).
+
+Avec l'agent Cursor : toute modification demandée est publiée **par défaut** sur GitLab
+(changelog + commit + push), sauf mention explicite « sans publier » / « ne pousse pas » / « local only ».
+
+Gitea (`https://git.aguilera.ch/Aguilera_Lab/Projector`) reste accessible comme remote secondaire `gitea` ;
+le miroir via `scripts/publish-to-gitea.sh` n'est plus requis.
 
 ## Licence
 

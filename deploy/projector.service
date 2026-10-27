@@ -1,6 +1,6 @@
 [Unit]
 Description=PROJECTOR — gestion de projets HERMES5 (Next.js)
-Documentation=https://git.aguilera.ch/Aguilera_Lab/Projector
+Documentation=https://gitlab.aguilera.ch/Aguilera_Lab/Projector
 After=network-online.target
 Wants=network-online.target
 

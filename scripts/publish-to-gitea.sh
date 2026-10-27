@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Publie les changements locaux vers Gitea (Aguilera_Lab/Projector).
+# Miroir optionnel (legacy) vers Gitea (Aguilera_Lab/Projector) via le remote « gitea ».
+# La publication principale se fait désormais sur GitLab : scripts/publish-to-gitlab.sh
 # Auth : variable GITEA_TOKEN, ou fichier .local/gitea-token (non versionné).
 set -euo pipefail
 
@@ -24,8 +25,8 @@ if [[ -z "$TOKEN" ]]; then
   exit 1
 fi
 
-git remote get-url origin >/dev/null 2>&1 || git remote add origin "$REMOTE_URL"
-git remote set-url origin "$REMOTE_URL"
+git remote get-url gitea >/dev/null 2>&1 || git remote add gitea "$REMOTE_URL"
+git remote set-url gitea "$REMOTE_URL"
 
 if git diff --quiet && git diff --cached --quiet && [[ -z "$(git status --porcelain)" ]]; then
   echo "Rien à publier (arbre de travail propre)."
@@ -54,9 +55,8 @@ git -c user.name="$AUTHOR_NAME" -c user.email="$AUTHOR_EMAIL" commit -m "$MSG"
 AUTH_PUSH="https://Michel:${TOKEN}@git.aguilera.ch/Aguilera_Lab/Projector.git"
 git -c http.postBuffer=524288000 -c http.version=HTTP/1.1 push "$AUTH_PUSH" HEAD:main
 
-git remote set-url origin "$REMOTE_URL"
-git fetch origin
-git branch -u origin/main main 2>/dev/null || true
+git remote set-url gitea "$REMOTE_URL"
+git fetch gitea
 
 echo "Publié : $REPO_WEB"
 echo "Commit : $(git rev-parse --short HEAD)"
