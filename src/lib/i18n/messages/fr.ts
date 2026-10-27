@@ -476,6 +476,14 @@ const fr = {
         title: "Invitation acceptée",
         message: "{name} ({email}) a rejoint PROJECTOR en tant que {role}.",
       },
+      task_overdue: {
+        title: "Tâche en retard",
+        message: "« {taskTitle} » ({projectName}) a dépassé son échéance du {dueDate}.",
+      },
+      report_available: {
+        title: "Rapport disponible",
+        message: "{actorName} a partagé le rapport « {reportTitle} » ({projectName}).",
+      },
     },
   },
   admin: {

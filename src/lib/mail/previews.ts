@@ -53,6 +53,16 @@ const NOTIFICATION_SAMPLES: Record<
     params: { name: "Lena Huber", email: "lena.huber@example.com", role: "guest" },
     href: "/parametres/administration",
   },
+  task_overdue: {
+    params: { taskTitle: "Rédiger le cahier des charges", projectName: "Refonte du portail <RH>", dueDate: "2026-10-20" },
+    href: "/taches",
+    projectId: "demo-project",
+  },
+  report_available: {
+    params: { reportTitle: "Avancement projet", projectName: "Refonte du portail <RH>", actorName: "Claire Martin" },
+    href: "/rapports",
+    projectId: "demo-project",
+  },
 };
 
 export const EMAIL_PREVIEW_TYPES = [

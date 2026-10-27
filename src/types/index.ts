@@ -79,6 +79,8 @@ export interface Project {
   createdAt: string;
   /** Langue des documents HERMES générés (défaut : fr). */
   documentLocale?: DocumentLocale;
+  /** Espace Microsoft Teams du projet (équipe ou canal), s'il a été créé. */
+  teams?: import("./integrations").ProjectTeamsWorkspace;
 }
 
 /** Langue d'un projet : libellés HERMES et documents générés. */
@@ -138,6 +140,8 @@ export interface Task {
   startedAt?: string;
   completedAt?: string;
   updatedAt?: string;
+  /** Date de la notification « tâche en retard » (évite les doublons). */
+  overdueNotifiedAt?: string;
 }
 
 export interface TaskDependency {
@@ -430,7 +434,9 @@ export type NotificationKind =
   | "budget_revision_approved"
   | "budget_approval_required"
   | "document_pv_pending"
-  | "invitation_accepted";
+  | "invitation_accepted"
+  | "task_overdue"
+  | "report_available";
 
 /** Paramètres d'une notification, traduits à l'affichage dans la langue du destinataire. */
 export type NotificationParams = Record<string, string | number>;
@@ -661,3 +667,5 @@ export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   termine: "Terminé",
   bloque: "Bloqué",
 };
+
+export * from "./integrations";

@@ -474,6 +474,14 @@ const es: Messages = {
         title: "Invitación aceptada",
         message: "{name} ({email}) se ha unido a PROJECTOR como {role}.",
       },
+      task_overdue: {
+        title: "Tarea vencida",
+        message: "«{taskTitle}» ({projectName}) superó su fecha límite del {dueDate}.",
+      },
+      report_available: {
+        title: "Informe disponible",
+        message: "{actorName} compartió el informe «{reportTitle}» ({projectName}).",
+      },
     },
   },
   admin: {

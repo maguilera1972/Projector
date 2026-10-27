@@ -1,0 +1,11 @@
+[Unit]
+Description=PROJECTOR — tâches planifiées Microsoft Teams / Copilot (retards, météo, synthèse, connecteur)
+Documentation=https://gitlab.aguilera.ch/Aguilera_Lab/Projector/-/blob/main/docs/integration-teams-copilot.md
+After=projector.service
+
+[Service]
+Type=oneshot
+# Adapter ce chemin à l'installation locale ; PROJECTOR_CRON_SECRET doit y être défini.
+EnvironmentFile=/opt/projector/.env.local
+Environment=PORT=3001
+ExecStart=/bin/sh -c 'curl -fsS --max-time 300 -X POST -H "X-Projector-Cron-Secret: $PROJECTOR_CRON_SECRET" "http://127.0.0.1:$PORT/api/integrations/jobs/run" -o /dev/null -w "jobs HTTP %%{http_code}\n"'

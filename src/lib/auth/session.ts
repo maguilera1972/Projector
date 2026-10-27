@@ -27,6 +27,29 @@ export async function createSession(user: SessionUser): Promise<void> {
   }
 }
 
+/**
+ * Session ouverte dans un cadre tiers (onglet Microsoft Teams) : même cookie, mais
+ * `SameSite=None; Secure` et partitionné (CHIPS) pour survivre au blocage des cookies tiers.
+ */
+export async function createEmbeddedSession(user: SessionUser): Promise<void> {
+  const token = await createSessionToken(user);
+  const cookieStore = await cookies();
+  cookieStore.set(COOKIE_NAME, token, {
+    ...sessionCookieOptions(),
+    secure: true,
+    sameSite: "none",
+    partitioned: true,
+  });
+  if (user.locale) {
+    cookieStore.set(LOCALE_COOKIE, user.locale, {
+      ...localeCookieOptions(),
+      secure: true,
+      sameSite: "none",
+      partitioned: true,
+    });
+  }
+}
+
 export async function destroySession(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.delete({ name: COOKIE_NAME, path: "/" });

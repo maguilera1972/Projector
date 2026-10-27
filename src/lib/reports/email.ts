@@ -1,5 +1,5 @@
 import type { SessionUser } from "@/lib/auth/permissions";
-import { appendAuditEntries, listUsers } from "@/lib/db/store";
+import { appendAuditEntries, listUsers, notifyReportShared } from "@/lib/db/store";
 import { getPublicUrl } from "@/lib/env";
 import { normalizeLocale, type Locale } from "@/lib/i18n/config";
 import { getTranslator } from "@/lib/i18n/translate";
@@ -185,6 +185,18 @@ export async function sendReportByEmail(input: {
         attached: attachedAll,
       },
     })),
+  );
+
+  const sentEmails = new Set(sent.map((item) => item.email.toLowerCase()));
+  await notifyReportShared(
+    users.filter((item) => sentEmails.has(item.email.toLowerCase()) && item.id !== user.id).map((item) => item.id),
+    {
+      title: base.document.title,
+      projectName: base.document.scopeLabel,
+      actorName: user.name,
+      href: `/rapports?${reportParamsToSearch(params).toString()}`,
+      projectId: base.projectIds.length === 1 ? base.projectIds[0] : undefined,
+    },
   );
 
   return { ok: true, sent, failed, attached: attachedAll };

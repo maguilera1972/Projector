@@ -35,8 +35,11 @@ import {
   notifyTaskAssigned,
   notifyDocumentPvPending,
   notifyInvitationAccepted,
+  notifyReportAvailable,
+  notifyTaskOverdue,
 } from "@/lib/notifications/dispatch";
-import { flushNotificationEmails } from "@/lib/notifications/email";
+import { flushNotifications } from "@/lib/notifications/deliver";
+import { getConnectorId } from "@/lib/integrations/config";
 import { isLocale, type Locale } from "@/lib/i18n/config";
 import { buildTasksFromScenario } from "@/lib/hermes/instantiate";
 import { getScenarioById } from "@/lib/hermes/referential";
@@ -92,7 +95,13 @@ import type {
   AnnexDocumentVersion,
   ProjectFolder,
   EntraUnknownUserPolicy,
+  IntegrationFeature,
+  IntegrationSettings,
+  ProjectTeamsWorkspace,
+  TeamsConversationRef,
+  TeamsMeeting,
 } from "@/types";
+import { INTEGRATION_FEATURES } from "@/types";
 import { applyActivityAggregation } from "@/lib/tasks/progress";
 import { validateScheduleDates } from "@/lib/tasks/dates";
 import { addWorkingDays } from "@/lib/scheduling/calendar";
@@ -233,6 +242,9 @@ interface Database {
   entraSettings: EntraSettings;
   annexDocuments: AnnexDocument[];
   projectFolders: ProjectFolder[];
+  integrationSettings: IntegrationSettings;
+  teamsConversations: TeamsConversationRef[];
+  teamsMeetings: TeamsMeeting[];
 }
 
 export function generalFolderId(projectId: string): string {
@@ -282,6 +294,48 @@ const DEFAULT_ENTRA_SETTINGS: EntraSettings = {
   unknownUserPolicy: "pending",
   mappings: [],
 };
+
+const DEFAULT_INTEGRATION_FEATURES: Record<IntegrationFeature, boolean> = {
+  activityFeed: true,
+  meetings: true,
+  workspaces: true,
+  tabs: false,
+  sharepoint: false,
+  bot: true,
+  proactive: true,
+  connector: true,
+  copilotApi: true,
+};
+
+function defaultIntegrationSettings(): IntegrationSettings {
+  return {
+    features: { ...DEFAULT_INTEGRATION_FEATURES },
+    connector: {
+      connectionId: getConnectorId(),
+      schemaStatus: "none",
+      itemIds: [],
+      itemHashes: {},
+    },
+    projectWeather: {},
+  };
+}
+
+function normalizeIntegrationSettings(raw: Partial<IntegrationSettings> | undefined): IntegrationSettings {
+  const base = defaultIntegrationSettings();
+  if (!raw) return base;
+  return {
+    ...base,
+    ...raw,
+    features: { ...base.features, ...(raw.features ?? {}) },
+    connector: {
+      ...base.connector,
+      ...(raw.connector ?? {}),
+      itemIds: raw.connector?.itemIds ?? [],
+      itemHashes: raw.connector?.itemHashes ?? {},
+    },
+    projectWeather: raw.projectWeather ?? {},
+  };
+}
 
 function normalizeDatabase(raw: Partial<Database>): Database {
   const tasks = (raw.tasks ?? []).map((task) => ({
@@ -356,6 +410,9 @@ function normalizeDatabase(raw: Partial<Database>): Database {
       ...(raw.entraSettings ?? {}),
       mappings: raw.entraSettings?.mappings ?? [],
     },
+    integrationSettings: normalizeIntegrationSettings(raw.integrationSettings),
+    teamsConversations: raw.teamsConversations ?? [],
+    teamsMeetings: raw.teamsMeetings ?? [],
   };
 }
 
@@ -403,6 +460,9 @@ async function loadDatabaseFromDisk(): Promise<Database> {
       annexDocuments: [],
       projectFolders: [],
       entraSettings: { ...DEFAULT_ENTRA_SETTINGS, mappings: [] },
+      integrationSettings: defaultIntegrationSettings(),
+      teamsConversations: [],
+      teamsMeetings: [],
     };
 
     await persistDatabaseAtomic(db);
@@ -469,7 +529,7 @@ async function writeDatabase(db: Database): Promise<void> {
     memoryDb = db;
     await persistDatabaseAtomic(db);
   });
-  flushNotificationEmails(db.users);
+  flushNotifications(db);
 }
 
 /**
@@ -487,7 +547,7 @@ async function mutateDatabase<T>(
     await persistDatabaseAtomic(memoryDb);
     return value;
   });
-  if (memoryDb) flushNotificationEmails(memoryDb.users);
+  if (memoryDb) flushNotifications(memoryDb);
   return result;
 }
 
@@ -1321,6 +1381,10 @@ export async function deleteProject(projectId: string): Promise<boolean> {
     db.projectFolders = db.projectFolders.filter(
       (item) => item.projectId !== projectId,
     );
+    db.teamsMeetings = db.teamsMeetings.filter(
+      (item) => item.projectId !== projectId,
+    );
+    delete db.integrationSettings.projectWeather[projectId];
     return true;
   });
 
@@ -3111,6 +3175,7 @@ export interface UpdateUserProfileInput {
   newPassword?: string;
   locale?: Locale;
   emailNotifications?: boolean;
+  teamsNotifications?: boolean;
 }
 
 export async function updateUserProfile(
@@ -3180,6 +3245,10 @@ export async function updateUserProfile(
 
   if (input.emailNotifications !== undefined) {
     user.emailNotifications = Boolean(input.emailNotifications);
+  }
+
+  if (input.teamsNotifications !== undefined) {
+    user.teamsNotifications = Boolean(input.teamsNotifications);
   }
 
   await writeDatabase(db);
@@ -4239,5 +4308,260 @@ export async function deleteCustomFolder(
       details: { folderId, name: folder.name },
     });
     return true;
+  });
+}
+
+// ─── Intégrations Microsoft 365 (Teams, bot, Copilot) ─────────────────────
+
+export async function getIntegrationSettings(): Promise<IntegrationSettings> {
+  const db = await readDatabase();
+  return structuredClone(db.integrationSettings);
+}
+
+/** Mise à jour atomique des paramètres d'intégration (fonctionnalités, état du connecteur…). */
+export async function updateIntegrationSettings(
+  mutator: (settings: IntegrationSettings) => void,
+): Promise<IntegrationSettings> {
+  return mutateDatabase((db) => {
+    mutator(db.integrationSettings);
+    db.integrationSettings.updatedAt = new Date().toISOString();
+    return structuredClone(db.integrationSettings);
+  });
+}
+
+export async function setIntegrationFeatures(
+  features: Partial<Record<IntegrationFeature, boolean>>,
+  actor: AuditActor,
+): Promise<IntegrationSettings> {
+  return mutateDatabase((db) => {
+    const changes: Record<string, boolean> = {};
+    for (const feature of INTEGRATION_FEATURES) {
+      const value = features[feature];
+      if (typeof value === "boolean" && db.integrationSettings.features[feature] !== value) {
+        db.integrationSettings.features[feature] = value;
+        changes[feature] = value;
+      }
+    }
+    db.integrationSettings.updatedAt = new Date().toISOString();
+    db.integrationSettings.updatedBy = actor.id;
+    if (Object.keys(changes).length > 0) {
+      appendAudit(db, {
+        action: "integrations.features_updated",
+        actorId: actor.id,
+        actorName: actor.name,
+        details: changes,
+      });
+    }
+    return structuredClone(db.integrationSettings);
+  });
+}
+
+/** Compte PROJECTOR lié à un objet Entra (claim `oid` / aadObjectId Teams). */
+export async function getUserByEntraOid(oid: string): Promise<User | null> {
+  if (!oid) return null;
+  const db = await readDatabase();
+  const user = db.users.find(
+    (item) => item.entraOid?.toLowerCase() === oid.toLowerCase() && isUserActive(item),
+  );
+  return user ? stripPassword(user) : null;
+}
+
+export async function listTeamsConversations(): Promise<TeamsConversationRef[]> {
+  const db = await readDatabase();
+  return structuredClone(db.teamsConversations);
+}
+
+export async function upsertTeamsConversation(
+  ref: Omit<TeamsConversationRef, "installedAt" | "updatedAt">,
+): Promise<TeamsConversationRef> {
+  return mutateDatabase((db) => {
+    const now = new Date().toISOString();
+    const existing = db.teamsConversations.find((item) => item.id === ref.id);
+    if (existing) {
+      Object.assign(existing, ref, { updatedAt: now });
+    } else {
+      db.teamsConversations.push({ ...ref, installedAt: now, updatedAt: now });
+    }
+    if (ref.serviceUrl) db.integrationSettings.botServiceUrl = ref.serviceUrl;
+    return structuredClone(db.teamsConversations.find((item) => item.id === ref.id)!);
+  });
+}
+
+export async function removeTeamsConversations(
+  predicate: (ref: TeamsConversationRef) => boolean,
+): Promise<number> {
+  return mutateDatabase((db) => {
+    const before = db.teamsConversations.length;
+    db.teamsConversations = db.teamsConversations.filter((ref) => !predicate(ref));
+    return before - db.teamsConversations.length;
+  });
+}
+
+export async function setProjectTeamsWorkspace(
+  projectId: string,
+  workspace: ProjectTeamsWorkspace | null,
+  actor: AuditActor,
+): Promise<Project | null> {
+  return mutateDatabase((db) => {
+    const project = db.projects.find((item) => item.id === projectId);
+    if (!project) return null;
+    if (workspace) project.teams = workspace;
+    else delete project.teams;
+    appendAudit(db, {
+      projectId,
+      action: workspace ? "teams.workspace_updated" : "teams.workspace_unlinked",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: workspace
+        ? {
+            mode: workspace.mode,
+            teamId: workspace.teamId,
+            status: workspace.status,
+            channels: workspace.channels.length,
+          }
+        : {},
+    });
+    return structuredClone(project);
+  });
+}
+
+export async function listTeamsMeetings(projectId?: string): Promise<TeamsMeeting[]> {
+  const db = await readDatabase();
+  return structuredClone(
+    db.teamsMeetings
+      .filter((meeting) => !projectId || meeting.projectId === projectId)
+      .sort((a, b) => a.start.localeCompare(b.start)),
+  );
+}
+
+export async function getTeamsMeetingById(id: string): Promise<TeamsMeeting | undefined> {
+  const db = await readDatabase();
+  const meeting = db.teamsMeetings.find((item) => item.id === id);
+  return meeting ? structuredClone(meeting) : undefined;
+}
+
+export async function saveTeamsMeeting(meeting: TeamsMeeting, actor: AuditActor): Promise<TeamsMeeting> {
+  return mutateDatabase((db) => {
+    const index = db.teamsMeetings.findIndex((item) => item.id === meeting.id);
+    if (index === -1) db.teamsMeetings.push(meeting);
+    else db.teamsMeetings[index] = meeting;
+    appendAudit(db, {
+      projectId: meeting.projectId,
+      action: index === -1 ? "teams.meeting_scheduled" : "teams.meeting_updated",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: {
+        meetingId: meeting.id,
+        kind: meeting.kind,
+        phase: meeting.phase,
+        start: meeting.start,
+        status: meeting.status,
+        attendees: meeting.attendees.length,
+      },
+    });
+    return structuredClone(meeting);
+  });
+}
+
+export async function listAllPhaseValidations(): Promise<PhaseValidation[]> {
+  const db = await readDatabase();
+  return structuredClone(db.phaseValidations);
+}
+
+export async function listAllBudgetRevisions(): Promise<BudgetRevision[]> {
+  const db = await readDatabase();
+  return structuredClone(db.budgetRevisions);
+}
+
+/** Refus d'une révision budgétaire par le mandant (Teams, API). */
+export async function rejectBudgetRevision(
+  revisionId: string,
+  actorId: string,
+  actorName: string,
+  comment: string,
+): Promise<BudgetRevision> {
+  return mutateDatabase((db) => {
+    const revision = db.budgetRevisions.find((item) => item.id === revisionId);
+    if (!revision) throw new Error("Révision introuvable.");
+    if (revision.status !== "pending_mandant") {
+      throw new Error("Seule une révision en attente peut être refusée.");
+    }
+    const reason = comment.trim();
+    if (!reason) throw new Error("Un motif de refus est requis.");
+    revision.status = "rejected";
+    revision.rejectionComment = reason;
+    appendAudit(db, {
+      projectId: revision.projectId,
+      action: "budget.revision_rejected",
+      actorId,
+      actorName,
+      details: { revisionId, comment: reason },
+    });
+    return structuredClone(revision);
+  });
+}
+
+/** Ajoute un commentaire horodaté à une tâche (bot Teams, API Copilot). */
+export async function appendTaskComment(
+  taskId: string,
+  actor: AuditActor,
+  text: string,
+): Promise<Task> {
+  return mutateDatabase((db) => {
+    const task = db.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Tâche introuvable.");
+    const body = text.trim().slice(0, 2000);
+    if (!body) throw new Error("Commentaire vide.");
+    const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+    const line = `[${stamp}] ${actor.name} : ${body}`;
+    task.comments = task.comments ? `${task.comments}\n${line}` : line;
+    task.updatedAt = new Date().toISOString();
+    appendAudit(db, {
+      projectId: task.projectId,
+      action: "task.commented",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: { taskId, via: "teams" },
+    });
+    return structuredClone(task);
+  });
+}
+
+/**
+ * Notifie (une seule fois par tâche) les responsables des tâches dont l'échéance est dépassée.
+ * Renvoie le nombre de notifications créées.
+ */
+export async function scanOverdueTasks(today = new Date().toISOString().slice(0, 10)): Promise<number> {
+  return mutateDatabase((db) => {
+    let count = 0;
+    const projectById = new Map(db.projects.map((project) => [project.id, project]));
+    for (const task of db.tasks) {
+      if (!task.assigneeId || !task.dueDate || task.status === "termine") continue;
+      if (task.dueDate.slice(0, 10) >= today || task.overdueNotifiedAt) continue;
+      const project = projectById.get(task.projectId);
+      if (!project || project.status === "termine") continue;
+      const assignee = db.users.find((user) => user.id === task.assigneeId);
+      if (!assignee || !isUserActive(assignee)) continue;
+      notifyTaskOverdue(db.notifications, project, task, task.assigneeId);
+      task.overdueNotifiedAt = new Date().toISOString();
+      count += 1;
+    }
+    db.integrationSettings.lastOverdueScanAt = new Date().toISOString();
+    return count;
+  });
+}
+
+/** Notifie les comptes PROJECTOR destinataires d'un rapport partagé. */
+export async function notifyReportShared(
+  userIds: string[],
+  report: { title: string; projectName: string; actorName: string; href: string; projectId?: string },
+): Promise<void> {
+  if (userIds.length === 0) return;
+  await mutateDatabase((db) => {
+    for (const userId of new Set(userIds)) {
+      const user = db.users.find((item) => item.id === userId);
+      if (!user || !isUserActive(user)) continue;
+      notifyReportAvailable(db.notifications, userId, report);
+    }
   });
 }

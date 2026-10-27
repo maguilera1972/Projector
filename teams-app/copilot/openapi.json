@@ -1,0 +1,762 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "PROJECTOR Copilot API",
+    "version": "1.0.0",
+    "description": "API de PROJECTOR (gestion de projets HERMES 5.1) pour Microsoft 365 Copilot et les agents IA : projets, météo, tâches, décisions en attente, rapports de statut et actions du mandant. Les droits sont ceux de l'utilisateur PROJECTOR lié au compte Microsoft (jeton délégué) ; un jeton d'application donne un accès en lecture seule."
+  },
+  "servers": [
+    {
+      "url": "https://projector.aguilera.ch/api/copilot"
+    }
+  ],
+  "security": [
+    {
+      "entraOAuth": [
+        "api://f5f1bb90-afec-4e0d-9500-2f6e970ef5a9/access_as_user"
+      ]
+    }
+  ],
+  "paths": {
+    "/me": {
+      "get": {
+        "operationId": "getMe",
+        "summary": "Utilisateur courant",
+        "description": "Returns the PROJECTOR user linked to the caller, with counts of open tasks, overdue tasks and pending decisions. Use it to greet the user or to check what they can do.",
+        "responses": {
+          "200": {
+            "description": "Utilisateur ou application appelante",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Me" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/projects": {
+      "get": {
+        "operationId": "listProjects",
+        "summary": "Lister les projets",
+        "description": "Lists the HERMES projects visible to the user with status, current phase, progress, weather (green/orange/red health), project manager (chef), sponsor (mandant) and link. Filter by text, status or weather.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Text searched in project name, id, project manager, sponsor and description.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Project status: planifie (planned), en_cours (in progress), en_pause (paused), termine (completed) or active (all but completed).",
+            "schema": {
+              "type": "string",
+              "enum": ["planifie", "en_cours", "en_pause", "termine", "active"]
+            }
+          },
+          {
+            "name": "weather",
+            "in": "query",
+            "required": false,
+            "description": "Project health: green (on track), orange (watch), red (critical), neutral (not evaluable).",
+            "schema": {
+              "type": "string",
+              "enum": ["green", "orange", "red", "neutral"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of projects returned (1-200, default 50).",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+          },
+          { "$ref": "#/components/parameters/Locale" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste des projets",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProjectList" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/projects/{projectId}": {
+      "get": {
+        "operationId": "getProject",
+        "summary": "Détail d'un projet",
+        "description": "Returns one project with its health per dimension (schedule, budget, decisions) and reasons, task counts, overdue tasks, pending decisions (phase gate, budget revisions) and next milestones. Use listProjects first to find the projectId.",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/Locale" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Projet",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProjectDetail" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/projects/{projectId}/tasks": {
+      "get": {
+        "operationId": "listProjectTasks",
+        "summary": "Tâches d'un projet",
+        "description": "Lists the tasks of a project sorted by due date, optionally filtered by status (a_faire, en_cours, termine, bloque, open, overdue) or restricted to tasks assigned to the user.",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "a_faire (to do), en_cours (in progress), termine (done), bloque (blocked), open (not done) or overdue.",
+            "schema": {
+              "type": "string",
+              "enum": ["a_faire", "en_cours", "termine", "bloque", "open", "overdue"]
+            }
+          },
+          {
+            "name": "mine",
+            "in": "query",
+            "required": false,
+            "description": "true to keep only the tasks assigned to the signed-in user.",
+            "schema": { "type": "boolean" }
+          },
+          { "$ref": "#/components/parameters/Locale" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tâches",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TaskList" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/projects/{projectId}/status-report": {
+      "get": {
+        "operationId": "getProjectStatusReport",
+        "summary": "Rapport de statut",
+        "description": "Generates the textual status report (Markdown) of a project: KPIs, weather, phases, overdue tasks, decisions. Use it to summarise a project or draft a status update.",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/Locale" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rapport",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StatusReport" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/tasks/mine": {
+      "get": {
+        "operationId": "listMyTasks",
+        "summary": "Mes tâches ouvertes",
+        "description": "Lists the open tasks assigned to the signed-in user across all projects, sorted by due date, with an overdue flag.",
+        "parameters": [{ "$ref": "#/components/parameters/Locale" }],
+        "responses": {
+          "200": {
+            "description": "Tâches",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MyTaskList" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/decisions/pending": {
+      "get": {
+        "operationId": "listPendingDecisions",
+        "summary": "Décisions en attente",
+        "description": "Lists the decisions waiting for the user as project sponsor (mandant): phase gate validations and budget revisions. canAct tells whether the user may approve or reject.",
+        "parameters": [{ "$ref": "#/components/parameters/Locale" }],
+        "responses": {
+          "200": {
+            "description": "Décisions",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PendingDecisions" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/tasks/{taskId}/complete": {
+      "post": {
+        "operationId": "completeTask",
+        "summary": "Terminer une tâche",
+        "description": "Marks a task as done (status termine, progress 100 %). Requires the right to edit the task in PROJECTOR. Ask the user to confirm first.",
+        "parameters": [{ "$ref": "#/components/parameters/TaskId" }],
+        "responses": {
+          "200": {
+            "description": "Tâche mise à jour",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TaskActionResult" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/tasks/{taskId}/comments": {
+      "post": {
+        "operationId": "commentTask",
+        "summary": "Commenter une tâche",
+        "description": "Adds a comment to a task on behalf of the user.",
+        "parameters": [{ "$ref": "#/components/parameters/TaskId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CommentRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Commentaire ajouté",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TaskActionResult" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/projects/{projectId}/phase-gate/approve": {
+      "post": {
+        "operationId": "approvePhaseGate",
+        "summary": "Valider la phase (mandant)",
+        "description": "Approves the pending phase gate of a project as sponsor (mandant): the project moves to the next HERMES phase. Only the sponsor can do it. Always ask for explicit confirmation.",
+        "parameters": [{ "$ref": "#/components/parameters/ProjectId" }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SignatureRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Phase validée",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PhaseGateActionResult" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/projects/{projectId}/phase-gate/reject": {
+      "post": {
+        "operationId": "rejectPhaseGate",
+        "summary": "Refuser la phase (mandant)",
+        "description": "Rejects the pending phase gate of a project as sponsor (mandant). A reason (comment) is required. Always ask for explicit confirmation.",
+        "parameters": [{ "$ref": "#/components/parameters/ProjectId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RejectRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Phase refusée",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PhaseGateActionResult" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/budget-revisions/{revisionId}/approve": {
+      "post": {
+        "operationId": "approveBudgetRevision",
+        "summary": "Approuver une révision budgétaire",
+        "description": "Approves a pending budget revision as sponsor (mandant); the project budget becomes the requested amount. Use listPendingDecisions to get the revisionId. Always ask for explicit confirmation.",
+        "parameters": [{ "$ref": "#/components/parameters/RevisionId" }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SignatureRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Révision approuvée",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BudgetActionResult" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/budget-revisions/{revisionId}/reject": {
+      "post": {
+        "operationId": "rejectBudgetRevision",
+        "summary": "Refuser une révision budgétaire",
+        "description": "Rejects a pending budget revision as sponsor (mandant). A reason (comment) is required. Always ask for explicit confirmation.",
+        "parameters": [{ "$ref": "#/components/parameters/RevisionId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RejectRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Révision refusée",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BudgetActionResult" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "entraOAuth": {
+        "type": "oauth2",
+        "description": "Microsoft Entra ID (jeton délégué, portée access_as_user).",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://login.microsoftonline.com/c4691421-eeae-4c7e-bd67-17849bca6c78/oauth2/v2.0/authorize",
+            "tokenUrl": "https://login.microsoftonline.com/c4691421-eeae-4c7e-bd67-17849bca6c78/oauth2/v2.0/token",
+            "refreshUrl": "https://login.microsoftonline.com/c4691421-eeae-4c7e-bd67-17849bca6c78/oauth2/v2.0/token",
+            "scopes": {
+              "api://f5f1bb90-afec-4e0d-9500-2f6e970ef5a9/access_as_user": "Accéder à PROJECTOR au nom de l'utilisateur"
+            }
+          }
+        }
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Jeton d'accès Entra émis pour PROJECTOR : délégué (scp access_as_user) ou application (rôle Projector.Read.All, lecture seule) pour les agents et démons."
+      }
+    },
+    "parameters": {
+      "ProjectId": {
+        "name": "projectId",
+        "in": "path",
+        "required": true,
+        "description": "Project identifier (field id returned by listProjects).",
+        "schema": { "type": "string" }
+      },
+      "TaskId": {
+        "name": "taskId",
+        "in": "path",
+        "required": true,
+        "description": "Task identifier (field id returned by task lists).",
+        "schema": { "type": "string" }
+      },
+      "RevisionId": {
+        "name": "revisionId",
+        "in": "path",
+        "required": true,
+        "description": "Budget revision identifier (field id returned by listPendingDecisions).",
+        "schema": { "type": "string" }
+      },
+      "Locale": {
+        "name": "locale",
+        "in": "query",
+        "required": false,
+        "description": "Language of labels: fr, en, de, it or es (default: user language).",
+        "schema": {
+          "type": "string",
+          "enum": ["fr", "en", "de", "it", "es"]
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Requête invalide",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+        }
+      },
+      "Unauthorized": {
+        "description": "Authentification requise ou jeton invalide",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+        }
+      },
+      "Forbidden": {
+        "description": "Accès refusé (compte non lié, droits insuffisants, jeton d'application pour une action)",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+        }
+      },
+      "NotFound": {
+        "description": "Élément introuvable ou non accessible",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "description": "Message lisible" },
+          "code": { "type": "string" }
+        },
+        "required": ["error"]
+      },
+      "Me": {
+        "type": "object",
+        "properties": {
+          "principal": { "type": "string", "description": "user or application" },
+          "authenticatedVia": { "type": "string" },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "email": { "type": "string" },
+              "role": { "type": "string" },
+              "locale": { "type": "string" }
+            }
+          },
+          "appId": { "type": "string" },
+          "roles": { "type": "array", "items": { "type": "string" } },
+          "canAct": { "type": "boolean" },
+          "openTasks": { "type": "integer" },
+          "overdueTasks": { "type": "integer" },
+          "pendingDecisions": { "type": "integer" }
+        }
+      },
+      "ProjectSummary": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "status": { "type": "string" },
+          "statusLabel": { "type": "string" },
+          "phase": { "type": "string" },
+          "phaseLabel": { "type": "string" },
+          "approach": { "type": "string" },
+          "approachLabel": { "type": "string" },
+          "progress": { "type": "integer", "description": "Avancement en %" },
+          "weather": { "type": "string", "description": "green, orange, red or neutral" },
+          "weatherLabel": { "type": "string" },
+          "startDate": { "type": "string", "nullable": true },
+          "endDate": { "type": "string", "nullable": true },
+          "chef": { "type": "string", "nullable": true, "description": "Chef de projet" },
+          "mandant": { "type": "string", "nullable": true, "description": "Mandant (sponsor)" },
+          "portfolio": { "type": "string", "nullable": true },
+          "budgetCHF": { "type": "number", "nullable": true },
+          "budgetStatus": { "type": "string" },
+          "budgetStatusLabel": { "type": "string" },
+          "url": { "type": "string", "description": "Lien vers le projet dans PROJECTOR" }
+        }
+      },
+      "ProjectList": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "integer" },
+          "truncated": { "type": "boolean" },
+          "projects": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ProjectSummary" }
+          }
+        }
+      },
+      "HealthDimension": {
+        "type": "object",
+        "properties": {
+          "tone": { "type": "string" },
+          "label": { "type": "string" },
+          "reasons": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "Milestone": {
+        "type": "object",
+        "properties": {
+          "kind": { "type": "string", "description": "task, phaseGate or projectEnd" },
+          "label": { "type": "string" },
+          "date": { "type": "string" },
+          "taskId": { "type": "string" }
+        }
+      },
+      "ProjectDetail": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "status": { "type": "string" },
+          "statusLabel": { "type": "string" },
+          "phase": { "type": "string" },
+          "phaseLabel": { "type": "string" },
+          "approachLabel": { "type": "string" },
+          "progress": { "type": "integer" },
+          "weather": { "type": "string" },
+          "weatherLabel": { "type": "string" },
+          "startDate": { "type": "string", "nullable": true },
+          "endDate": { "type": "string", "nullable": true },
+          "chef": { "type": "string", "nullable": true },
+          "mandant": { "type": "string", "nullable": true },
+          "portfolio": { "type": "string", "nullable": true },
+          "budgetCHF": { "type": "number", "nullable": true },
+          "budgetStatusLabel": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "url": { "type": "string" },
+          "statusReportUrl": { "type": "string" },
+          "health": {
+            "type": "object",
+            "properties": {
+              "overall": { "type": "string" },
+              "overallLabel": { "type": "string" },
+              "schedule": { "$ref": "#/components/schemas/HealthDimension" },
+              "budget": { "$ref": "#/components/schemas/HealthDimension" },
+              "decisions": { "$ref": "#/components/schemas/HealthDimension" },
+              "slipDays": { "type": "integer", "nullable": true },
+              "budgetIncreasePct": { "type": "integer", "nullable": true }
+            }
+          },
+          "tasks": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "integer" },
+              "done": { "type": "integer" },
+              "open": { "type": "integer" },
+              "overdue": { "type": "integer" },
+              "blocked": { "type": "integer" }
+            }
+          },
+          "overdueTasks": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Task" }
+          },
+          "pendingDecisions": {
+            "type": "array",
+            "description": "Phase gate (type phaseGate) and budget revisions (type budgetRevision) awaiting the sponsor.",
+            "items": { "$ref": "#/components/schemas/Decision" }
+          },
+          "nextMilestones": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Milestone" }
+          }
+        }
+      },
+      "Task": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "projectId": { "type": "string" },
+          "projectName": { "type": "string" },
+          "phase": { "type": "string" },
+          "phaseLabel": { "type": "string" },
+          "status": { "type": "string" },
+          "statusLabel": { "type": "string" },
+          "progress": { "type": "integer" },
+          "startDate": { "type": "string", "nullable": true },
+          "dueDate": { "type": "string", "nullable": true },
+          "overdue": { "type": "boolean" },
+          "assignee": { "type": "string", "nullable": true },
+          "url": { "type": "string" }
+        }
+      },
+      "TaskList": {
+        "type": "object",
+        "properties": {
+          "projectId": { "type": "string" },
+          "projectName": { "type": "string" },
+          "count": { "type": "integer" },
+          "truncated": { "type": "boolean" },
+          "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } }
+        }
+      },
+      "MyTaskList": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "integer" },
+          "overdue": { "type": "integer" },
+          "truncated": { "type": "boolean" },
+          "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } }
+        }
+      },
+      "Decision": {
+        "type": "object",
+        "description": "Pending decision. type = phaseGate (phase validation, act with approvePhaseGate/rejectPhaseGate on projectId) or budgetRevision (act with approveBudgetRevision/rejectBudgetRevision on id).",
+        "properties": {
+          "type": { "type": "string" },
+          "id": { "type": "string" },
+          "projectId": { "type": "string" },
+          "projectName": { "type": "string" },
+          "status": { "type": "string" },
+          "statusLabel": { "type": "string" },
+          "fromPhaseLabel": { "type": "string" },
+          "toPhaseLabel": { "type": "string" },
+          "submittedBy": { "type": "string" },
+          "submittedAt": { "type": "string" },
+          "comment": { "type": "string", "nullable": true },
+          "amountCHF": { "type": "number" },
+          "amountLabel": { "type": "string" },
+          "currentBudgetCHF": { "type": "number", "nullable": true },
+          "reason": { "type": "string", "nullable": true },
+          "requestedBy": { "type": "string" },
+          "requestedAt": { "type": "string" },
+          "canAct": { "type": "boolean", "description": "true if the user is the sponsor and may approve or reject" },
+          "url": { "type": "string" }
+        }
+      },
+      "PendingDecisions": {
+        "type": "object",
+        "properties": {
+          "scope": { "type": "string" },
+          "count": { "type": "integer" },
+          "phaseGates": { "type": "array", "items": { "$ref": "#/components/schemas/Decision" } },
+          "budgetRevisions": { "type": "array", "items": { "$ref": "#/components/schemas/Decision" } }
+        }
+      },
+      "StatusReport": {
+        "type": "object",
+        "properties": {
+          "projectId": { "type": "string" },
+          "projectName": { "type": "string" },
+          "title": { "type": "string" },
+          "locale": { "type": "string" },
+          "generatedAt": { "type": "string" },
+          "url": { "type": "string" },
+          "markdown": { "type": "string", "description": "Rapport complet en Markdown" }
+        }
+      },
+      "CommentRequest": {
+        "type": "object",
+        "properties": {
+          "text": { "type": "string", "description": "Comment text (max 2000 characters)." }
+        },
+        "required": ["text"]
+      },
+      "SignatureRequest": {
+        "type": "object",
+        "properties": {
+          "signatureText": {
+            "type": "string",
+            "description": "Electronic signature text, usually the sponsor's full name (default: user name)."
+          }
+        }
+      },
+      "RejectRequest": {
+        "type": "object",
+        "properties": {
+          "comment": { "type": "string", "description": "Reason for the rejection (required)." }
+        },
+        "required": ["comment"]
+      },
+      "TaskActionResult": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" },
+          "message": { "type": "string" },
+          "task": { "$ref": "#/components/schemas/Task" }
+        }
+      },
+      "PhaseGateActionResult": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" },
+          "message": { "type": "string" },
+          "validation": { "$ref": "#/components/schemas/Decision" },
+          "project": { "$ref": "#/components/schemas/ProjectSummary" }
+        }
+      },
+      "BudgetActionResult": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" },
+          "message": { "type": "string" },
+          "revision": { "$ref": "#/components/schemas/Decision" },
+          "project": { "$ref": "#/components/schemas/ProjectSummary" }
+        }
+      }
+    }
+  }
+}

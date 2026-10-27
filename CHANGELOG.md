@@ -9,16 +9,18 @@ Les nouvelles entrées s'ajoutent **en haut**, juste sous ce paragraphe.
 
 ## 2026-10-27
 
-### Modifié
-
-- Dépôt principal migré vers GitLab : `https://gitlab.aguilera.ch/Aguilera_Lab/Projector` (remote `origin`). Gitea reste disponible comme remote secondaire `gitea` (miroir facultatif).
-- Règle Cursor `publish-gitlab.mdc` : après toute modification demandée, mise à jour du changelog, commit et push vers GitLab par défaut (sauf « sans publier », « ne pousse pas », « local only »).
-- README et unité systemd (`Documentation=`) pointent vers GitLab.
-- Session : l'utilisateur est relu en base à chaque requête — un changement de rôle, de permissions ou une suspension s'applique immédiatement, sans reconnexion.
-- Notifications stockées avec des paramètres et traduites à l'affichage dans la langue du destinataire (les anciennes restent en français).
-- Documents HERMES générés et Word : libellés (scénario, phase, approche, statuts, titres) dans la langue du projet ; corps de modèles en anglais pour l'italien, l'espagnol et l'allemand.
-
 ### Ajouté
+
+- **Microsoft Teams & Copilot** — document de conception et de mise en place `docs/integration-teams-copilot.md` (architecture, diagrammes de séquence, modèle de données, permissions accordées / à ajouter, sécurité, procédure d'administration, plan de tests, limites, déploiement progressif).
+- Notifications PROJECTOR dans le **flux d'activité Teams** (`TeamsActivity.Send`) pour les mêmes événements que les e-mails, avec lien profond vers l'onglet PROJECTOR ; installation automatique de l'app personnelle si l'ID de catalogue est connu ; nouveaux événements « tâche en retard » (contrôle quotidien) et « rapport disponible ».
+- Profil : choix du canal de notification (e-mail, Teams, les deux, aucun).
+- **Réunions Teams** depuis la fiche projet : séance de quality gate (décideurs présélectionnés, ordre du jour, lien vers le dossier de phase) ou point de situation récurrent, créées dans le calendrier de l'organisateur ; lien « Rejoindre », annulation, invitation à consigner la décision et le PV après la séance.
+- **Espace Teams par projet** (option à la création et bouton sur la fiche) : équipe dédiée avec un canal par phase HERMES ou canal(aux) dans une équipe existante, aperçu (simulation), synchronisation des membres (comptes Entra internes ; invités et comptes non liés signalés), onglets PROJECTOR et synchronisation SharePoint conditionnés aux permissions `TeamsTab.Create` / `Sites.Selected`.
+- **Bot PROJECTOR** (`/api/teams/messages`, protocole Bot Framework sans SDK) : commandes multilingues (« mes tâches », « état <projet> », « décisions en attente », « aide »), cartes adaptatives 1.5 pour approuver / refuser les quality gates et révisions budgétaires, terminer ou commenter une tâche (droits PROJECTOR appliqués via l'objet Entra), messages proactifs dans les canaux projet (changement de phase, météo au rouge, synthèse hebdomadaire), extension de messagerie (recherche projets / tâches / documents) et aperçu des liens projector.aguilera.ch.
+- **Copilot** : connecteur Microsoft Graph `projectorprojects` (projets, statut, décisions, budgets, rapports, ACL calquées sur la visibilité PROJECTOR, synchronisation incrémentale) et API `/api/copilot/*` (jetons Entra `access_as_user` ou rôles d'application `Projector.Read.All`) décrite en OpenAPI, avec agent déclaratif et plugin API sous `teams-app/copilot/` ; documentation `docs/api-copilot.md` (usage par d'autres agents IA).
+- Application Teams (`teams-app/manifest.json` v1.19, onglet personnel « Mes tâches », onglet configurable par projet avec SSO Teams, bot, extension de messagerie), icônes générées depuis le logo et script `scripts/teams/build-teams-app.sh` → `dist/teams-app/projector-teams.zip`.
+- Administration : section « Microsoft Teams & Copilot » (permissions présentes dans le jeton d'application, bot, app Teams, connecteur), activation par fonctionnalité, tests (notification Teams, réunion de test créée puis supprimée, tâches planifiées, connecteur).
+- Tâches planifiées (`/api/integrations/jobs/run` protégé par `PROJECTOR_CRON_SECRET`, timer systemd `deploy/projector-integrations.timer` ou intervalle `PROJECTOR_JOBS_INTERVAL_MIN`).
 
 - **Rapports** : nouveau module dans la section Rapports avec cinq rapports au visuel PROJECTOR — avancement projet (phases, tâches, jalons, écarts au baseline, météo vert/orange/rouge), budget (initial, révisé, demandé, historique des révisions, valeur acquise estimée, alertes), décisions & quality gates (journal des validations, décisions en attente, PV à signer), portefeuille (santé, budget agrégé, retards, prochaines décisions) et ressources & charge (charge et retards par personne). Filtres par projet, portfolio ou ensemble des projets, période et langue du rapport (FR, EN, IT, ES, DE) ; aperçu à l'écran avec graphiques. Export PDF (logo, en-tête, pagination, accents) et envoi par e-mail via Microsoft Graph aux personnes assignées (présélectionnées, ajout ou retrait possible, message personnel, langue de chaque destinataire), PDF en pièce jointe ou lien sécurisé au-delà de 3 Mo ; envois tracés dans le journal d'audit. Accès réservé à la permission « Rapports » ; les invités externes ne voient que leurs projets.
 - **E-mails aux couleurs de PROJECTOR** — Tous les e-mails (invitations, notifications, e-mail de test, envoi de rapports) utilisent désormais un gabarit unique reprenant le visuel du site : bandeau navy avec logo, liseré dégradé, bouton d'action, tableau récapitulatif (projet, phase, montant…), pied de page avec lien vers le portail et les préférences de notification ; responsive, mode sombre, compatible Outlook ; textes en FR/EN/IT/ES/DE et contenu utilisateur échappé. Aperçu admin via `/api/admin/email-preview` et script `scripts/render-email-previews.mjs`.
@@ -40,8 +42,20 @@ Les nouvelles entrées s'ajoutent **en haut**, juste sous ce paragraphe.
 - Script `scripts/publish-to-gitlab.sh` (jeton `GITLAB_TOKEN` ou `~/.config/gitlab/personal_access_token`, option `--dry-run`, staging ciblé via `-- chemins`, exclusions des secrets et données runtime).
 - Ce fichier `CHANGELOG.md`.
 
+### Modifié
+
+- Dépôt principal migré vers GitLab : `https://gitlab.aguilera.ch/Aguilera_Lab/Projector` (remote `origin`). Gitea reste disponible comme remote secondaire `gitea` (miroir facultatif).
+- Règle Cursor `publish-gitlab.mdc` : après toute modification demandée, mise à jour du changelog, commit et push vers GitLab par défaut (sauf « sans publier », « ne pousse pas », « local only »).
+- README et unité systemd (`Documentation=`) pointent vers GitLab.
+- Session : l'utilisateur est relu en base à chaque requête — un changement de rôle, de permissions ou une suspension s'applique immédiatement, sans reconnexion.
+- Notifications stockées avec des paramètres et traduites à l'affichage dans la langue du destinataire (les anciennes restent en français).
+- Documents HERMES générés et Word : libellés (scénario, phase, approche, statuts, titres) dans la langue du projet ; corps de modèles en anglais pour l'italien, l'espagnol et l'allemand.
+
 ### Sécurité
 
+- Validation des jetons Bot Framework (métadonnées OpenID, émetteur, audience, endorsements, serviceUrl) et liste blanche des serviceUrl ; validation des jetons Entra de l'API Copilot et du SSO Teams (JWKS, émetteur, audience, locataire, scope / rôles).
+- En-tête `Content-Security-Policy: frame-ancestors` limitant l'affichage de PROJECTOR en cadre à Microsoft Teams / Microsoft 365.
+- Protection CSRF : les mutations d'API portant le cookie de session et marquées `Sec-Fetch-Site: cross-site`/`same-site` sont refusées (cookie de l'onglet Teams en `SameSite=None`).
 - Identifiants Entra / Graph uniquement dans `.env.local` (non versionné) ; `.env.example` ne contient que des valeurs fictives.
 - Documents annexes : téléchargement uniquement authentifié, `Content-Disposition: attachment`, `nosniff`, CSP sandbox ; noms de fichiers nettoyés et stockage sous noms générés (`uploads/annexes/<projet>/<document>/`), aucune traversée de chemin possible ; extensions autorisées en liste blanche ; dossier `uploads/` ignoré par Git.
 - Jetons d'invitation stockés sous forme d'empreinte SHA-256, à usage unique, valables 7 jours (`PROJECTOR_INVITATION_TTL_DAYS`).

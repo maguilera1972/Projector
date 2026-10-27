@@ -7,6 +7,8 @@ import { ProjectPlanView } from "@/components/project/project-plan-view";
 import { PhaseGatePanel } from "@/components/project/phase-gate-panel";
 import { ProjectDocumentsPanel } from "@/components/project/project-documents-panel";
 import { GeneratedDocumentsPanel } from "@/components/project/generated-documents-panel";
+import { TeamsMeetingsPanel } from "@/components/project/teams-meetings-panel";
+import { TeamsWorkspacePanel } from "@/components/project/teams-workspace-panel";
 import {
   getProjectById,
   getPortfolioById,
@@ -24,6 +26,8 @@ import {
 import {
   canUserActAsChefDeProjet,
   canUserActAsMandant,
+  canUserManageProjectMandant,
+  isPlatformAdmin,
 } from "@/lib/hermes/project-roles";
 import { getSessionUser } from "@/lib/auth/session";
 import { canUserAssignTasksOnProject } from "@/lib/auth/task-assignment";
@@ -115,6 +119,8 @@ export default async function ProjectDetailPage({
   const phaseLabel = tDynamic(t, `enums.phase.${project.currentPhase}`);
   const scenarioLabel = localizeScenario(project.scenarioId, locale)?.label ?? null;
   const documentsExplorer = await loadProjectDocumentsExplorer(id, user);
+  const canManageTeams = canUserManageProjectMandant(user, project, portfolio);
+  const canScheduleMeetings = canManageTeams || canApproveAsMandant || isPlatformAdmin(user);
   const canChangeLanguage =
     canSubmitPhase || user.role === "admin";
 
@@ -176,6 +182,12 @@ export default async function ProjectDetailPage({
               pendingBudgetDocument={pendingBudgetDocument}
               canSubmit={canSubmitPhase}
               canApprove={canApproveAsMandant}
+            />
+
+            <TeamsMeetingsPanel
+              projectId={project.id}
+              currentPhase={project.currentPhase}
+              canSchedule={canScheduleMeetings}
             />
 
             <ProjectPlanView
@@ -284,6 +296,12 @@ export default async function ProjectDetailPage({
                 </div>
               </dl>
             </section>
+
+            <TeamsWorkspacePanel
+              projectId={project.id}
+              initialWorkspace={project.teams ?? null}
+              canManage={canManageTeams}
+            />
           </aside>
         </div>
       </main>

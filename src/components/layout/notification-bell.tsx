@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AlarmClock,
+  BarChart3,
   Bell,
   CheckCheck,
   ClipboardList,
@@ -30,6 +32,8 @@ const KIND_ICONS: Record<NotificationKind, LucideIcon> = {
   budget_revision_approved: Wallet,
   budget_approval_required: Wallet,
   document_pv_pending: FileText,
+  task_overdue: AlarmClock,
+  report_available: BarChart3,
 };
 
 function relativeTime(iso: string, t: Translator, locale: Locale): string {

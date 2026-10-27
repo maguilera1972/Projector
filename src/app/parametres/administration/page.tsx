@@ -9,6 +9,7 @@ import { ProjectMandantAssignmentTable } from "@/components/admin/project-mandan
 import { AdminInvitationsPanel } from "@/components/admin/admin-invitations-panel";
 import { AdminMailPanel } from "@/components/admin/admin-mail-panel";
 import { AdminEntraPanel } from "@/components/admin/admin-entra-panel";
+import { AdminTeamsPanel } from "@/components/admin/admin-teams-panel";
 import { getEntraRedirectUri, isEntraLoginEnabled } from "@/lib/auth/entra";
 import { getRequestTranslator } from "@/lib/i18n/server";
 import { getMailSender } from "@/lib/mail/graph";
@@ -171,6 +172,8 @@ export default async function AdministrationPage() {
         )}
 
         {isAdmin && <AdminMailPanel sender={mailSender} />}
+
+        {isAdmin && <AdminTeamsPanel />}
 
         <section
           className={`rounded-xl border border-slate-200 bg-white shadow-sm ${isAdmin || canInvite ? "mt-8" : ""}`}

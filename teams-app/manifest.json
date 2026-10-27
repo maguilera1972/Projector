@@ -1,0 +1,149 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.19/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.19",
+  "version": "1.0.0",
+  "id": "f800790d-3a30-4c4a-958e-f8fa4c8b9107",
+  "localizationInfo": {
+    "defaultLanguageTag": "fr-ch"
+  },
+  "developer": {
+    "name": "Aguilera Lab",
+    "websiteUrl": "https://projector.aguilera.ch",
+    "privacyUrl": "https://projector.aguilera.ch/aide",
+    "termsOfUseUrl": "https://projector.aguilera.ch/aide"
+  },
+  "name": {
+    "short": "PROJECTOR",
+    "full": "PROJECTOR — Gestion de projets HERMES"
+  },
+  "description": {
+    "short": "Projets HERMES 5.1 : tâches, jalons, décisions et rapports dans Teams.",
+    "full": "PROJECTOR est l'outil de gestion de projets HERMES 5.1 d'Aguilera Lab. Dans Microsoft Teams : onglet personnel « Mes tâches », onglets de projet ou de phase dans les canaux et réunions, notifications dans le flux d'activité, bot conversationnel (« mes tâches », « état <projet> », « décisions en attente ») avec approbation des jalons de phase et des révisions budgétaires par cartes adaptatives, recherche de projets dans la zone de rédaction et aperçu des liens PROJECTOR. Les droits PROJECTOR (chef de projet, mandant, membres) s'appliquent à chaque action."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#1e293b",
+  "staticTabs": [
+    {
+      "entityId": "projector-tasks",
+      "name": "Mes tâches",
+      "contentUrl": "https://projector.aguilera.ch/teams/tab?view=tasks",
+      "websiteUrl": "https://projector.aguilera.ch/taches",
+      "scopes": ["personal"]
+    },
+    {
+      "entityId": "conversations",
+      "scopes": ["personal"]
+    },
+    {
+      "entityId": "about",
+      "scopes": ["personal"]
+    }
+  ],
+  "configurableTabs": [
+    {
+      "configurationUrl": "https://projector.aguilera.ch/teams/config",
+      "canUpdateConfiguration": true,
+      "scopes": ["team", "groupChat"],
+      "context": [
+        "channelTab",
+        "privateChatTab",
+        "meetingChatTab",
+        "meetingDetailsTab",
+        "meetingSidePanel"
+      ]
+    }
+  ],
+  "bots": [
+    {
+      "botId": "f5f1bb90-afec-4e0d-9500-2f6e970ef5a9",
+      "scopes": ["personal", "team", "groupChat"],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": ["personal"],
+          "commands": [
+            {
+              "title": "mes tâches",
+              "description": "Liste vos tâches ouvertes et en retard, avec actions rapides."
+            },
+            {
+              "title": "état",
+              "description": "État d'un projet : phase, météo, budget, prochain jalon (ex. « état Migration ERP »)."
+            },
+            {
+              "title": "décisions en attente",
+              "description": "Jalons de phase et révisions budgétaires à approuver en tant que mandant."
+            },
+            {
+              "title": "aide",
+              "description": "Commandes disponibles (français, English, italiano, español, Deutsch)."
+            }
+          ]
+        },
+        {
+          "scopes": ["team", "groupChat"],
+          "commands": [
+            {
+              "title": "état",
+              "description": "État d'un projet : phase, météo, budget, prochain jalon (ex. « état Migration ERP »)."
+            },
+            {
+              "title": "mes tâches",
+              "description": "Vos tâches ouvertes (réponse visible dans la conversation)."
+            },
+            {
+              "title": "décisions en attente",
+              "description": "Décisions de mandant en attente vous concernant."
+            },
+            {
+              "title": "aide",
+              "description": "Commandes disponibles du bot PROJECTOR."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "composeExtensions": [
+    {
+      "botId": "f5f1bb90-afec-4e0d-9500-2f6e970ef5a9",
+      "canUpdateConfiguration": false,
+      "commands": [
+        {
+          "id": "searchProjector",
+          "type": "query",
+          "title": "Rechercher dans PROJECTOR",
+          "description": "Rechercher un projet, une tâche ou une décision et l'insérer sous forme de carte.",
+          "initialRun": true,
+          "context": ["compose", "commandBox"],
+          "parameters": [
+            {
+              "name": "query",
+              "title": "Recherche",
+              "description": "Nom de projet, de tâche ou de décision",
+              "inputType": "text"
+            }
+          ]
+        }
+      ],
+      "messageHandlers": [
+        {
+          "type": "link",
+          "value": {
+            "domains": ["projector.aguilera.ch"]
+          }
+        }
+      ]
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": ["projector.aguilera.ch"],
+  "webApplicationInfo": {
+    "id": "f5f1bb90-afec-4e0d-9500-2f6e970ef5a9",
+    "resource": "api://projector.aguilera.ch/f5f1bb90-afec-4e0d-9500-2f6e970ef5a9"
+  }
+}

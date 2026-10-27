@@ -24,6 +24,21 @@ const nextConfig: NextConfig = {
   },
   // Évite les conflits si .next/ a été créé par root (Permission denied / Turbopack panic).
   distDir: process.env.NEXT_DIST_DIR ?? ".local/next",
+  // Onglets Teams : seul Microsoft Teams / Microsoft 365 peut afficher PROJECTOR dans un cadre.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value:
+              "frame-ancestors 'self' https://teams.microsoft.com https://*.teams.microsoft.com https://*.teams.cloud.microsoft https://*.cloud.microsoft https://*.office.com https://*.microsoft365.com https://*.skype.com",
+          },
+        ],
+      },
+    ];
+  },
   allowedDevOrigins: [
     "172.16.12.10",
     "localhost",

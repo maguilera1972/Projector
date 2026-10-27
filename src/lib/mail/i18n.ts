@@ -48,6 +48,8 @@ const fr = {
       budget_approval_required: "Valider le budget",
       document_pv_pending: "Ouvrir le dossier projet",
       invitation_accepted: "Voir l'administration",
+      task_overdue: "Voir mes tâches",
+      report_available: "Ouvrir les rapports",
     },
   },
   test: {
@@ -105,6 +107,8 @@ const en: MailMessages = {
       budget_approval_required: "Approve the budget",
       document_pv_pending: "Open the project folder",
       invitation_accepted: "Open administration",
+      task_overdue: "View my tasks",
+      report_available: "Open reports",
     },
   },
   test: {
@@ -156,6 +160,8 @@ const de: MailMessages = {
       budget_approval_required: "Budget freigeben",
       document_pv_pending: "Projektdossier öffnen",
       invitation_accepted: "Administration öffnen",
+      task_overdue: "Meine Aufgaben anzeigen",
+      report_available: "Berichte öffnen",
     },
   },
   test: {
@@ -207,6 +213,8 @@ const it: MailMessages = {
       budget_approval_required: "Approva il budget",
       document_pv_pending: "Apri il dossier di progetto",
       invitation_accepted: "Apri l'amministrazione",
+      task_overdue: "Vedi le mie attività",
+      report_available: "Apri i report",
     },
   },
   test: {
@@ -258,6 +266,8 @@ const es: MailMessages = {
       budget_approval_required: "Validar el presupuesto",
       document_pv_pending: "Abrir el expediente del proyecto",
       invitation_accepted: "Abrir la administración",
+      task_overdue: "Ver mis tareas",
+      report_available: "Abrir los informes",
     },
   },
   test: {

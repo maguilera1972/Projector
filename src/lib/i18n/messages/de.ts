@@ -474,6 +474,14 @@ const de: Messages = {
         title: "Einladung angenommen",
         message: "{name} ({email}) ist PROJECTOR als {role} beigetreten.",
       },
+      task_overdue: {
+        title: "Überfällige Aufgabe",
+        message: "„{taskTitle}“ ({projectName}) hat das Fälligkeitsdatum {dueDate} überschritten.",
+      },
+      report_available: {
+        title: "Bericht verfügbar",
+        message: "{actorName} hat den Bericht „{reportTitle}“ ({projectName}) geteilt.",
+      },
     },
   },
   admin: {

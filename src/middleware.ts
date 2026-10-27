@@ -12,7 +12,26 @@ const PUBLIC_PATHS = [
   "/api/i18n/locale",
   // Logos chargés par les clients mail, sans session.
   "/brand/",
+  // Microsoft Teams / Copilot : authentification propre (JWT Bot Framework, jeton Entra, secret cron).
+  "/api/teams/messages",
+  "/api/teams/sso",
+  "/teams/",
+  "/api/copilot/",
+  "/api/integrations/jobs/run",
 ];
+
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * Le cookie de session posé par l'onglet Teams est SameSite=None : toute mutation d'API portant
+ * ce cookie doit provenir de PROJECTOR lui-même (protection CSRF via Sec-Fetch-Site).
+ */
+function isCrossSiteMutation(request: NextRequest): boolean {
+  if (SAFE_METHODS.has(request.method) || !request.nextUrl.pathname.startsWith("/api/")) return false;
+  if (!request.cookies.get(COOKIE_NAME)) return false;
+  const site = request.headers.get("sec-fetch-site");
+  return site === "cross-site" || site === "same-site";
+}
 
 async function isAuthenticated(request: NextRequest): Promise<boolean> {
   const token = request.cookies.get(COOKIE_NAME)?.value;
@@ -22,6 +41,10 @@ async function isAuthenticated(request: NextRequest): Promise<boolean> {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (isCrossSiteMutation(request)) {
+    return NextResponse.json({ error: "Requête intersite refusée." }, { status: 403 });
+  }
 
   if (
     PUBLIC_PATHS.some((path) => pathname.startsWith(path)) ||

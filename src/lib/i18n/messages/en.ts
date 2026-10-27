@@ -474,6 +474,14 @@ const en: Messages = {
         title: "Invitation accepted",
         message: "{name} ({email}) joined PROJECTOR as {role}.",
       },
+      task_overdue: {
+        title: "Overdue task",
+        message: "“{taskTitle}” ({projectName}) passed its due date of {dueDate}.",
+      },
+      report_available: {
+        title: "Report available",
+        message: "{actorName} shared the report “{reportTitle}” ({projectName}).",
+      },
     },
   },
   admin: {

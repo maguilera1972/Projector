@@ -2,15 +2,14 @@ import { isUserActive, type DbUser } from "@/lib/auth/permissions";
 import { normalizeLocale } from "@/lib/i18n/config";
 import { isMailConfigured, sendMail } from "@/lib/mail/graph";
 import { buildNotificationEmail } from "@/lib/mail/templates";
-import { drainPendingNotificationEmails } from "@/lib/notifications/dispatch";
 import { renderNotification } from "@/lib/notifications/render";
+import type { Notification } from "@/types";
 
 /**
- * Envoie (en arrière-plan) les notifications créées depuis le dernier enregistrement
- * aux destinataires ayant activé les e-mails. N'interrompt jamais la requête appelante.
+ * Envoie (en arrière-plan) les notifications aux destinataires ayant activé les e-mails.
+ * N'interrompt jamais la requête appelante.
  */
-export function flushNotificationEmails(users: DbUser[]): void {
-  const pending = drainPendingNotificationEmails();
+export function sendNotificationEmails(pending: Notification[], users: DbUser[]): void {
   if (pending.length === 0 || !isMailConfigured()) return;
 
   const byId = new Map(users.map((user) => [user.id, user]));
@@ -19,6 +18,8 @@ export function flushNotificationEmails(users: DbUser[]): void {
     const recipient = byId.get(notification.userId);
     if (!recipient || !isUserActive(recipient)) continue;
     if (recipient.emailNotifications === false) continue;
+    // Le rapport lui-même vient d'être envoyé par e-mail : la notification n'est relayée que dans Teams.
+    if (notification.kind === "report_available") continue;
 
     const locale = normalizeLocale(recipient.locale);
     const rendered = renderNotification(notification, locale);

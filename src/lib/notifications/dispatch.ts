@@ -263,3 +263,36 @@ export function notifyInvitationAccepted(
     href: "/parametres/administration",
   });
 }
+
+export function notifyTaskOverdue(
+  notifications: Notification[],
+  project: Project,
+  task: { id: string; title: string; dueDate?: string },
+  assigneeId: string,
+): void {
+  pushNotification(notifications, {
+    userId: assigneeId,
+    kind: "task_overdue",
+    title: "Tâche en retard",
+    message: `« ${task.title} » (${project.name}) a dépassé son échéance du ${task.dueDate ?? ""}.`,
+    params: { taskTitle: task.title, projectName: project.name, dueDate: task.dueDate ?? "" },
+    href: `/taches`,
+    projectId: project.id,
+  });
+}
+
+export function notifyReportAvailable(
+  notifications: Notification[],
+  userId: string,
+  report: { title: string; projectName: string; actorName: string; href: string; projectId?: string },
+): void {
+  pushNotification(notifications, {
+    userId,
+    kind: "report_available",
+    title: "Rapport disponible",
+    message: `${report.actorName} a partagé le rapport « ${report.title} » (${report.projectName}).`,
+    params: { reportTitle: report.title, projectName: report.projectName, actorName: report.actorName },
+    href: report.href,
+    projectId: report.projectId,
+  });
+}

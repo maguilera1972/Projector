@@ -2,13 +2,24 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowLeft, Save } from "lucide-react";
 import { UserAvatar } from "@/components/user/user-avatar";
 import type { AvatarDisplay, User } from "@/lib/auth/permissions";
 import { useI18n } from "@/lib/i18n/client";
 import { LOCALES, LOCALE_NATIVE_NAMES, normalizeLocale, type Locale } from "@/lib/i18n/config";
 import { tDynamic } from "@/lib/i18n/translate";
+import { getIntegrationTranslator } from "@/lib/integrations/i18n";
+
+type NotificationChannel = "email" | "teams" | "both" | "none";
+
+function channelFor(user: User): NotificationChannel {
+  const email = user.emailNotifications !== false;
+  const teams = Boolean(user.entraOid) && user.teamsNotifications !== false;
+  if (email && teams) return "both";
+  if (email) return "email";
+  return teams ? "teams" : "none";
+}
 
 interface ProfileFormProps {
   user: User;
@@ -28,9 +39,9 @@ export function ProfileForm({ user }: ProfileFormProps) {
   const [locale, setLocale] = useState<Locale>(
     user.locale ? normalizeLocale(user.locale) : currentLocale,
   );
-  const [emailNotifications, setEmailNotifications] = useState(
-    user.emailNotifications !== false,
-  );
+  const it = useMemo(() => getIntegrationTranslator(currentLocale), [currentLocale]);
+  const teamsAvailable = Boolean(user.entraOid);
+  const [channel, setChannel] = useState<NotificationChannel>(channelFor(user));
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -61,7 +72,8 @@ export function ProfileForm({ user }: ProfileFormProps) {
         email: email.trim(),
         avatarDisplay,
         locale,
-        emailNotifications,
+        emailNotifications: channel === "email" || channel === "both",
+        teamsNotifications: channel === "teams" || channel === "both",
       };
 
       if (newPassword) {
@@ -213,20 +225,23 @@ export function ProfileForm({ user }: ProfileFormProps) {
             </span>
           </label>
 
-          <label className="flex items-start gap-3 text-sm sm:mt-6">
-            <input
-              type="checkbox"
-              checked={emailNotifications}
-              onChange={(e) => setEmailNotifications(e.target.checked)}
-              className="mt-0.5"
-            />
-            <span>
-              <span className="font-medium text-slate-700">
-                {t("profile.emailNotifications")}
-              </span>
-              <span className="mt-1 block text-xs text-brand-muted">
-                {t("profile.emailNotificationsHelp")}
-              </span>
+          <label className="block text-sm">
+            <span className="font-medium text-slate-700">{it("profile.channelTitle")}</span>
+            <select
+              value={channel}
+              onChange={(e) => setChannel(e.target.value as NotificationChannel)}
+              className={inputClass}
+            >
+              {(["email", "teams", "both", "none"] as const)
+                .filter((option) => teamsAvailable || option === "email" || option === "none")
+                .map((option) => (
+                  <option key={option} value={option}>
+                    {it(`profile.channel.${option}`)}
+                  </option>
+                ))}
+            </select>
+            <span className="mt-1 block text-xs text-brand-muted">
+              {teamsAvailable ? it("profile.channelHint") : it("profile.teamsUnavailable")}
             </span>
           </label>
         </div>

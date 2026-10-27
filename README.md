@@ -80,6 +80,25 @@ systemctl --user enable --now projector.service
 loginctl enable-linger "$USER"
 ```
 
+### Microsoft Teams & Copilot
+
+Activation et état des capacités : **Paramètres › Administration › Microsoft Teams & Copilot**
+(permissions Graph présentes dans le jeton, bot, application Teams, connecteur, tests).
+Procédure d’administration complète (Azure Bot, « Exposer une API », permissions à consentir,
+import de l’application Teams, connecteur Graph) : `docs/integration-teams-copilot.md`.
+
+```bash
+bash scripts/teams/build-teams-app.sh        # → dist/teams-app/projector-teams.zip
+# Tâches planifiées horaires (retards, météo, synthèse hebdomadaire, connecteur Graph)
+cp deploy/projector-integrations.{service,timer} ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now projector-integrations.timer
+```
+
+Variables (toutes facultatives) : `TEAMS_APP_ID`, `TEAMS_APP_CATALOG_ID`, `TEAMS_BOT_APP_ID`,
+`TEAMS_MEETING_ORGANIZER`, `TEAMS_MEETING_TIMEZONE`, `COPILOT_CONNECTOR_ID`,
+`COPILOT_CONNECTOR_ADMIN_GROUP_ID`, `COPILOT_CONNECTOR_ACL_MODE`, `COPILOT_API_AUDIENCES`,
+`PROJECTOR_CRON_SECRET`, `PROJECTOR_JOBS_INTERVAL_MIN` — voir `.env.example`.
+
 ## Premier compte
 
 Au premier démarrage (base absente), un administrateur est créé. **Définissez vous-même** l’adresse e-mail et le mot de passe dans `.env.local` avant le premier lancement :
@@ -125,14 +144,21 @@ docs/                    # Cahier des charges
 - Authentification, profil, administration (utilisateurs, projets, portfolios)
 - Projets HERMES 5.1 (approche classique / agile), phases, quality gates
 - Tâches, planning, dépendances, baselines
-- Documents générés (Word / aperçu / PDF), notifications in-app
+- Documents générés (Word / aperçu / PDF), notifications in-app, e-mail et Teams
 - Portfolios et affectation mandant
+- Rapports (PDF, e-mail aux couleurs PROJECTOR)
+- Microsoft Teams & Copilot (facultatif) : notifications dans le flux d'activité Teams, réunions Teams
+  de quality gate, espace Teams par projet (canal par phase HERMES), bot PROJECTOR (commandes, cartes
+  d'approbation, extension de messagerie), connecteur Microsoft Graph et API / agent Copilot
 
 ## Documentation
 
 - `docs/cahier-des-charges-gestion-projets-hermes5.md` — spécifications
 - `agents.md` — consignes pour agents de développement
 - `.env.example` — variables d’environnement
+- `docs/integration-teams-copilot.md` — conception et mise en place Microsoft Teams & Copilot
+- `docs/api-copilot.md` — API Copilot (OpenAPI, jetons Entra, usage par d’autres agents IA)
+- `teams-app/` — manifeste de l’application Teams, agent déclaratif et plugin API Copilot
 
 ## Cloner / mettre à jour
 

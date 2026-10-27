@@ -52,6 +52,8 @@ export interface User {
   locale?: Locale;
   /** Envoi des notifications par e-mail (défaut : activé). */
   emailNotifications?: boolean;
+  /** Envoi des notifications dans le flux d'activité Teams (défaut : activé si compte Entra lié). */
+  teamsNotifications?: boolean;
   /** Compte créé via une invitation. */
   invitedBy?: string;
   /** Identifiant d'objet Microsoft Entra (claim `oid`) si le compte est lié. */

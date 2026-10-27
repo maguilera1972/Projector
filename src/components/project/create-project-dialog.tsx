@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ import { useI18n } from "@/lib/i18n/client";
 import { LOCALES, LOCALE_NATIVE_NAMES, type Locale } from "@/lib/i18n/config";
 import { tDynamic } from "@/lib/i18n/translate";
 import type { AssigneeOption } from "@/lib/users";
+import { getIntegrationTranslator } from "@/lib/integrations/i18n";
 
 interface HermesScenarioOption {
   id: string;
@@ -39,6 +40,9 @@ export function CreateProjectDialog({
   const [stakeholders, setStakeholders] = useState<AssigneeOption[]>([]);
   const [initialFiles, setInitialFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<string>("");
+  const it = useMemo(() => getIntegrationTranslator(locale), [locale]);
+  const [teamsAvailable, setTeamsAvailable] = useState(false);
+  const [createTeams, setCreateTeams] = useState(false);
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -98,6 +102,13 @@ export function CreateProjectDialog({
         }
       })
       .catch(() => setStakeholders([]));
+
+    fetch("/api/integrations/status")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { usable?: { workspaces?: boolean } } | null) => {
+        setTeamsAvailable(Boolean(data?.usable?.workspaces));
+      })
+      .catch(() => setTeamsAvailable(false));
   }, [open, defaultPortfolioId, defaultChefDeProjetId]);
 
   if (!open) return null;
@@ -154,6 +165,20 @@ export function CreateProjectDialog({
       }
       setUploadProgress("");
       setInitialFiles([]);
+
+      if (teamsAvailable && createTeams) {
+        setUploadProgress(it("workspace.creating"));
+        const teamsResponse = await fetch(`/api/projects/${projectId}/teams/workspace`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "team" }),
+        }).catch(() => null);
+        setUploadProgress("");
+        if (!teamsResponse?.ok) {
+          const teamsData = (await teamsResponse?.json().catch(() => ({}))) as { error?: string } | undefined;
+          window.alert(it("workspace.creationFailed", { error: teamsData?.error ?? t("common.networkError") }));
+        }
+      }
 
       onClose();
       router.push(`/projets/${projectId}`);
@@ -493,6 +518,21 @@ export function CreateProjectDialog({
               <p className="mt-1 text-xs font-medium text-brand-indigo">{uploadProgress}</p>
             )}
           </div>
+
+          {teamsAvailable && (
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={createTeams}
+                onChange={(e) => setCreateTeams(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="font-medium text-slate-700">{it("workspace.createAtCreation")}</span>
+                <span className="mt-0.5 block text-xs text-brand-muted">{it("workspace.createAtCreationHint")}</span>
+              </span>
+            </label>
+          )}
 
           <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
             <button

@@ -33,6 +33,7 @@ export async function PATCH(request: Request) {
       newPassword?: string;
       locale?: string;
       emailNotifications?: boolean;
+      teamsNotifications?: boolean;
     };
 
     if (body.locale !== undefined && !isLocale(body.locale)) {
@@ -60,6 +61,10 @@ export async function PATCH(request: Request) {
       emailNotifications:
         typeof body.emailNotifications === "boolean"
           ? body.emailNotifications
+          : undefined,
+      teamsNotifications:
+        typeof body.teamsNotifications === "boolean"
+          ? body.teamsNotifications
           : undefined,
     });
 

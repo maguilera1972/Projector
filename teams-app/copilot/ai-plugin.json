@@ -1,0 +1,308 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.2/schema.json",
+  "schema_version": "v2.2",
+  "namespace": "projector",
+  "name_for_human": "PROJECTOR",
+  "description_for_human": "Projets HERMES 5.1 : statut, météo, tâches, décisions du mandant et rapports de statut.",
+  "description_for_model": "PROJECTOR is the HERMES 5.1 project management tool of the organisation. Use it to list projects and their health (weather green/orange/red), get project details, list tasks (the user's own tasks or a project's tasks), list decisions waiting for the user as sponsor (mandant), generate a textual status report, and perform actions on behalf of the user: complete or comment a task, approve or reject a phase gate, approve or reject a budget revision. Always resolve identifiers with listProjects, listMyTasks or listPendingDecisions before acting, never invent ids, and always ask the user to confirm before an action. Include the url field as a link when citing a project or task.",
+  "logo_url": "https://projector.aguilera.ch/brand/projector-logo-email.png",
+  "functions": [
+    {
+      "name": "getMe",
+      "description": "Returns the signed-in PROJECTOR user with counts of open tasks, overdue tasks and pending decisions.",
+      "capabilities": {
+        "response_semantics": {
+          "data_path": "$",
+          "properties": {
+            "title": "$.user.name",
+            "subtitle": "$.user.email"
+          }
+        }
+      }
+    },
+    {
+      "name": "listProjects",
+      "description": "Lists the projects visible to the user with status, HERMES phase, progress, weather, project manager and sponsor. Supports text search (q), status and weather filters.",
+      "capabilities": {
+        "response_semantics": {
+          "data_path": "$.projects",
+          "properties": {
+            "title": "$.name",
+            "subtitle": "$.phaseLabel",
+            "url": "$.url"
+          },
+          "static_template": {
+            "type": "AdaptiveCard",
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "version": "1.5",
+            "body": [
+              { "type": "TextBlock", "text": "${name}", "weight": "Bolder", "wrap": true },
+              {
+                "type": "FactSet",
+                "facts": [
+                  { "title": "Statut", "value": "${statusLabel}" },
+                  { "title": "Phase", "value": "${phaseLabel}" },
+                  { "title": "Avancement", "value": "${progress} %" },
+                  { "title": "Météo", "value": "${weatherLabel}" },
+                  { "title": "Chef de projet", "value": "${if(chef, chef, '—')}" }
+                ]
+              }
+            ],
+            "actions": [{ "type": "Action.OpenUrl", "title": "Ouvrir dans PROJECTOR", "url": "${url}" }]
+          }
+        }
+      }
+    },
+    {
+      "name": "getProject",
+      "description": "Returns the details of one project: health per dimension with reasons, task counts, overdue tasks, pending decisions and next milestones.",
+      "capabilities": {
+        "response_semantics": {
+          "data_path": "$",
+          "properties": {
+            "title": "$.name",
+            "subtitle": "$.weatherLabel",
+            "url": "$.url"
+          },
+          "static_template": {
+            "type": "AdaptiveCard",
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "version": "1.5",
+            "body": [
+              { "type": "TextBlock", "text": "${name}", "weight": "Bolder", "size": "Medium", "wrap": true },
+              {
+                "type": "FactSet",
+                "facts": [
+                  { "title": "Statut", "value": "${statusLabel}" },
+                  { "title": "Phase", "value": "${phaseLabel}" },
+                  { "title": "Avancement", "value": "${progress} %" },
+                  { "title": "Météo", "value": "${health.overallLabel}" },
+                  { "title": "Tâches en retard", "value": "${tasks.overdue}" },
+                  { "title": "Mandant", "value": "${if(mandant, mandant, '—')}" }
+                ]
+              }
+            ],
+            "actions": [{ "type": "Action.OpenUrl", "title": "Ouvrir dans PROJECTOR", "url": "${url}" }]
+          }
+        }
+      }
+    },
+    {
+      "name": "listProjectTasks",
+      "description": "Lists the tasks of a project, optionally filtered by status (open, overdue, bloque…) or restricted to the user's tasks.",
+      "capabilities": {
+        "response_semantics": {
+          "data_path": "$.tasks",
+          "properties": {
+            "title": "$.title",
+            "subtitle": "$.statusLabel",
+            "url": "$.url"
+          },
+          "static_template": {
+            "type": "AdaptiveCard",
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "version": "1.5",
+            "body": [
+              { "type": "TextBlock", "text": "${title}", "weight": "Bolder", "wrap": true },
+              { "type": "TextBlock", "text": "${statusLabel} · ${phaseLabel} · échéance ${if(dueDate, dueDate, '—')}", "isSubtle": true, "wrap": true }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "getProjectStatusReport",
+      "description": "Generates the Markdown status report of a project (KPIs, weather, phases, overdue tasks, decisions).",
+      "capabilities": {
+        "response_semantics": {
+          "data_path": "$",
+          "properties": {
+            "title": "$.title",
+            "subtitle": "$.projectName",
+            "url": "$.url"
+          }
+        }
+      }
+    },
+    {
+      "name": "listMyTasks",
+      "description": "Lists the open tasks assigned to the signed-in user across all projects, sorted by due date.",
+      "capabilities": {
+        "response_semantics": {
+          "data_path": "$.tasks",
+          "properties": {
+            "title": "$.title",
+            "subtitle": "$.projectName",
+            "url": "$.url"
+          },
+          "static_template": {
+            "type": "AdaptiveCard",
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "version": "1.5",
+            "body": [
+              { "type": "TextBlock", "text": "${title}", "weight": "Bolder", "wrap": true },
+              { "type": "TextBlock", "text": "${projectName} · ${statusLabel} · échéance ${if(dueDate, dueDate, '—')}", "isSubtle": true, "wrap": true }
+            ],
+            "actions": [{ "type": "Action.OpenUrl", "title": "Ouvrir le projet", "url": "${url}" }]
+          }
+        }
+      }
+    },
+    {
+      "name": "listPendingDecisions",
+      "description": "Lists phase gate validations and budget revisions waiting for the user's decision as project sponsor (mandant).",
+      "capabilities": {
+        "response_semantics": {
+          "data_path": "$",
+          "properties": {
+            "title": "$.scope"
+          }
+        }
+      }
+    },
+    {
+      "name": "completeTask",
+      "description": "Marks a task as done on behalf of the user.",
+      "capabilities": {
+        "confirmation": {
+          "type": "AdaptiveCard",
+          "title": "Terminer la tâche",
+          "body": "Marquer la tâche **{{function.parameters.taskId}}** comme terminée dans PROJECTOR ?"
+        },
+        "response_semantics": {
+          "data_path": "$.task",
+          "properties": {
+            "title": "$.title",
+            "subtitle": "$.statusLabel",
+            "url": "$.url"
+          }
+        }
+      }
+    },
+    {
+      "name": "commentTask",
+      "description": "Adds a comment to a task on behalf of the user.",
+      "capabilities": {
+        "confirmation": {
+          "type": "AdaptiveCard",
+          "title": "Commenter la tâche",
+          "body": "Ajouter ce commentaire à la tâche **{{function.parameters.taskId}}** : {{function.parameters.text}}"
+        },
+        "response_semantics": {
+          "data_path": "$.task",
+          "properties": {
+            "title": "$.title",
+            "subtitle": "$.projectName",
+            "url": "$.url"
+          }
+        }
+      }
+    },
+    {
+      "name": "approvePhaseGate",
+      "description": "Approves the pending phase gate of a project as sponsor; the project moves to the next HERMES phase.",
+      "capabilities": {
+        "confirmation": {
+          "type": "AdaptiveCard",
+          "title": "Valider la phase",
+          "body": "Valider, en tant que mandant, le passage de phase du projet **{{function.parameters.projectId}}** (signature : {{function.parameters.signatureText}}) ?"
+        },
+        "response_semantics": {
+          "data_path": "$",
+          "properties": {
+            "title": "$.message",
+            "url": "$.project.url"
+          }
+        }
+      }
+    },
+    {
+      "name": "rejectPhaseGate",
+      "description": "Rejects the pending phase gate of a project as sponsor, with a mandatory reason.",
+      "capabilities": {
+        "confirmation": {
+          "type": "AdaptiveCard",
+          "title": "Refuser la phase",
+          "body": "Refuser la validation de phase du projet **{{function.parameters.projectId}}** pour le motif : {{function.parameters.comment}} ?"
+        },
+        "response_semantics": {
+          "data_path": "$",
+          "properties": {
+            "title": "$.message",
+            "url": "$.validation.url"
+          }
+        }
+      }
+    },
+    {
+      "name": "approveBudgetRevision",
+      "description": "Approves a pending budget revision as sponsor.",
+      "capabilities": {
+        "confirmation": {
+          "type": "AdaptiveCard",
+          "title": "Approuver la révision budgétaire",
+          "body": "Approuver, en tant que mandant, la révision budgétaire **{{function.parameters.revisionId}}** (signature : {{function.parameters.signatureText}}) ?"
+        },
+        "response_semantics": {
+          "data_path": "$",
+          "properties": {
+            "title": "$.message",
+            "url": "$.project.url"
+          }
+        }
+      }
+    },
+    {
+      "name": "rejectBudgetRevision",
+      "description": "Rejects a pending budget revision as sponsor, with a mandatory reason.",
+      "capabilities": {
+        "confirmation": {
+          "type": "AdaptiveCard",
+          "title": "Refuser la révision budgétaire",
+          "body": "Refuser la révision budgétaire **{{function.parameters.revisionId}}** pour le motif : {{function.parameters.comment}} ?"
+        },
+        "response_semantics": {
+          "data_path": "$",
+          "properties": {
+            "title": "$.message",
+            "url": "$.revision.url"
+          }
+        }
+      }
+    }
+  ],
+  "runtimes": [
+    {
+      "type": "OpenApi",
+      "auth": {
+        "type": "OAuthPluginVault",
+        "reference_id": "{{OAUTH_REFERENCE_ID}}"
+      },
+      "spec": {
+        "url": "openapi.json"
+      },
+      "run_for_functions": [
+        "getMe",
+        "listProjects",
+        "getProject",
+        "listProjectTasks",
+        "getProjectStatusReport",
+        "listMyTasks",
+        "listPendingDecisions",
+        "completeTask",
+        "commentTask",
+        "approvePhaseGate",
+        "rejectPhaseGate",
+        "approveBudgetRevision",
+        "rejectBudgetRevision"
+      ]
+    }
+  ],
+  "capabilities": {
+    "conversation_starters": [
+      { "title": "Mes tâches", "text": "Quelles sont mes tâches ouvertes dans PROJECTOR ?" },
+      { "title": "Projets en alerte", "text": "Quels projets ont une météo rouge ou orange ?" },
+      { "title": "Décisions", "text": "Quelles décisions m'attendent en tant que mandant ?" }
+    ]
+  }
+}
