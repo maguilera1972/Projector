@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import {
   ALL_PERMISSIONS,
   hasPermission,
+  isUserRole,
   PERMISSIONS,
   type Permission,
   type UserRole,
@@ -61,9 +62,13 @@ export async function PATCH(request: Request, context: RouteContext) {
       role?: UserRole;
       status?: UserStatus;
       permissions?: Permission[];
+      roleOverride?: boolean;
     };
 
-    if (body.role !== undefined && user.role !== "admin") {
+    if (
+      (body.role !== undefined || body.roleOverride !== undefined) &&
+      user.role !== "admin"
+    ) {
       return NextResponse.json(
         { error: "Seul un administrateur peut modifier le rôle d'un utilisateur." },
         { status: 403 },
@@ -71,7 +76,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     if (id === user.id && user.role === "admin") {
-      if (body.status === "suspended" || body.role === "user") {
+      if (
+        body.status === "suspended" ||
+        (body.role !== undefined && body.role !== "admin")
+      ) {
         return NextResponse.json(
           {
             error:
@@ -82,7 +90,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
-    if (body.role !== undefined && body.role !== "admin" && body.role !== "user") {
+    if (body.role !== undefined && !isUserRole(body.role)) {
       return NextResponse.json({ error: "Rôle invalide." }, { status: 400 });
     }
 
@@ -113,7 +121,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       role: body.role,
       status: body.status,
       permissions: body.permissions,
-    });
+      roleOverride:
+        typeof body.roleOverride === "boolean" ? body.roleOverride : undefined,
+    }, { id: user.id, name: user.name });
 
     if (!updated) {
       return NextResponse.json(

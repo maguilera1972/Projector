@@ -9,10 +9,13 @@ import {
   promises as fs,
 } from "fs";
 import path from "path";
+import { createHash, randomBytes } from "crypto";
 import {
   ALL_PERMISSIONS,
   DEFAULT_USER_PERMISSIONS,
+  defaultPermissionsForRole,
   getInitialAdmin,
+  highestRole,
   isUserActive,
   type AvatarDisplay,
   type DbUser,
@@ -31,7 +34,10 @@ import {
   notifyPhaseSubmitted,
   notifyTaskAssigned,
   notifyDocumentPvPending,
+  notifyInvitationAccepted,
 } from "@/lib/notifications/dispatch";
+import { flushNotificationEmails } from "@/lib/notifications/email";
+import { isLocale, type Locale } from "@/lib/i18n/config";
 import { buildTasksFromScenario } from "@/lib/hermes/instantiate";
 import { getScenarioById } from "@/lib/hermes/referential";
 import type {
@@ -75,6 +81,13 @@ import type {
   PendingPvDocumentItem,
   HermesPhaseId,
   Notification,
+  Invitation,
+  InvitationEmailStatus,
+  InvitationStatus,
+  InvitationSummary,
+  EntraRoleMapping,
+  EntraSettings,
+  EntraUnknownUserPolicy,
 } from "@/types";
 import { applyActivityAggregation } from "@/lib/tasks/progress";
 import { validateScheduleDates } from "@/lib/tasks/dates";
@@ -206,7 +219,14 @@ interface Database {
   projectDocuments: ProjectDocument[];
   generatedDocuments: GeneratedDocument[];
   notifications: Notification[];
+  invitations: Invitation[];
+  entraSettings: EntraSettings;
 }
+
+const DEFAULT_ENTRA_SETTINGS: EntraSettings = {
+  unknownUserPolicy: "pending",
+  mappings: [],
+};
 
 function normalizeDatabase(raw: Partial<Database>): Database {
   const tasks = (raw.tasks ?? []).map((task) => ({
@@ -262,6 +282,12 @@ function normalizeDatabase(raw: Partial<Database>): Database {
     projectDocuments: raw.projectDocuments ?? [],
     generatedDocuments: raw.generatedDocuments ?? [],
     notifications: raw.notifications ?? [],
+    invitations: raw.invitations ?? [],
+    entraSettings: {
+      ...DEFAULT_ENTRA_SETTINGS,
+      ...(raw.entraSettings ?? {}),
+      mappings: raw.entraSettings?.mappings ?? [],
+    },
   };
 }
 
@@ -305,6 +331,8 @@ async function loadDatabaseFromDisk(): Promise<Database> {
       projectDocuments: [],
       generatedDocuments: [],
       notifications: [],
+      invitations: [],
+      entraSettings: { ...DEFAULT_ENTRA_SETTINGS, mappings: [] },
     };
 
     await persistDatabaseAtomic(db);
@@ -367,10 +395,11 @@ async function readDatabase(): Promise<Database> {
 }
 
 async function writeDatabase(db: Database): Promise<void> {
-  return withWriteLock(async () => {
+  await withWriteLock(async () => {
     memoryDb = db;
     await persistDatabaseAtomic(db);
   });
+  flushNotificationEmails(db.users);
 }
 
 /**
@@ -380,14 +409,16 @@ async function writeDatabase(db: Database): Promise<void> {
 async function mutateDatabase<T>(
   mutator: (db: Database) => T | Promise<T>,
 ): Promise<T> {
-  return withWriteLock(async () => {
+  const result = await withWriteLock(async () => {
     if (!memoryDb) {
       memoryDb = await loadDatabaseFromDisk();
     }
-    const result = await mutator(memoryDb);
+    const value = await mutator(memoryDb);
     await persistDatabaseAtomic(memoryDb);
-    return result;
+    return value;
   });
+  if (memoryDb) flushNotificationEmails(memoryDb.users);
+  return result;
 }
 
 export async function authenticateUser(
@@ -1089,6 +1120,7 @@ export async function createProject(
     tasksCompleted: 0,
     createdBy,
     createdAt: new Date().toISOString(),
+    documentLocale: input.documentLocale ?? "fr",
   };
 
   db.projects.push(project);
@@ -1100,6 +1132,18 @@ export async function createProject(
 
   await writeDatabase(db);
   return project;
+}
+
+export async function updateProjectLocale(
+  projectId: string,
+  locale: Locale,
+): Promise<Project | null> {
+  return mutateDatabase((db) => {
+    const project = db.projects.find((p) => p.id === projectId);
+    if (!project) return null;
+    project.documentLocale = locale;
+    return project;
+  });
 }
 
 export async function assignProjectToPortfolio(
@@ -2799,18 +2843,33 @@ export async function createUser(input: {
   password: string;
   role: UserRole;
   permissions: Permission[];
+  locale?: Locale;
 }): Promise<User> {
-  const db = await readDatabase();
+  return mutateDatabase((db) => {
+    if (
+      db.users.some(
+        (u) => u.email.toLowerCase() === input.email.toLowerCase(),
+      )
+    ) {
+      throw new Error("Un utilisateur avec cet e-mail existe déjà.");
+    }
 
-  if (
-    db.users.some(
-      (u) => u.email.toLowerCase() === input.email.toLowerCase(),
-    )
-  ) {
-    throw new Error("Un utilisateur avec cet e-mail existe déjà.");
-  }
+    const user = buildDbUser(input);
+    db.users.push(user);
+    return stripPassword(user);
+  });
+}
 
-  const user: DbUser = {
+function buildDbUser(input: {
+  email: string;
+  name: string;
+  password: string;
+  role: UserRole;
+  permissions: Permission[];
+  locale?: Locale;
+  invitedBy?: string;
+}): DbUser {
+  return {
     id: crypto.randomUUID(),
     email: input.email.toLowerCase(),
     name: input.name,
@@ -2820,11 +2879,10 @@ export async function createUser(input: {
     createdAt: new Date().toISOString(),
     status: "active",
     avatarDisplay: "initials",
+    locale: input.locale,
+    emailNotifications: true,
+    invitedBy: input.invitedBy,
   };
-
-  db.users.push(user);
-  await writeDatabase(db);
-  return stripPassword(user);
 }
 
 export interface UpdateUserInput {
@@ -2834,6 +2892,12 @@ export interface UpdateUserInput {
   role?: UserRole;
   status?: UserStatus;
   permissions?: Permission[];
+  roleOverride?: boolean;
+}
+
+export interface AuditActor {
+  id: string;
+  name: string;
 }
 
 function countActiveAdmins(db: Database, excludeUserId?: string): number {
@@ -2848,6 +2912,7 @@ function countActiveAdmins(db: Database, excludeUserId?: string): number {
 export async function updateUser(
   userId: string,
   input: UpdateUserInput,
+  actor?: AuditActor,
 ): Promise<User | null> {
   const db = await readDatabase();
   const index = db.users.findIndex((user) => user.id === userId);
@@ -2890,6 +2955,14 @@ export async function updateUser(
     user.role = input.role;
   }
 
+  if (input.roleOverride !== undefined) {
+    user.roleOverride = input.roleOverride;
+  }
+
+  if (input.status === "active") {
+    user.pendingApproval = false;
+  }
+
   if (input.status !== undefined) {
     if (input.status === "suspended" && user.role === "admin") {
       if (countActiveAdmins(db, userId) === 0) {
@@ -2904,8 +2977,24 @@ export async function updateUser(
     user.permissions = [...ALL_PERMISSIONS];
   } else if (input.permissions !== undefined) {
     user.permissions = input.permissions;
-  } else if (previousRole === "admin" && nextRole === "user") {
-    user.permissions = [...DEFAULT_USER_PERMISSIONS];
+  } else if (previousRole !== nextRole) {
+    user.permissions = defaultPermissionsForRole(nextRole);
+  }
+
+  if (previousRole !== nextRole || input.roleOverride !== undefined) {
+    appendAudit(db, {
+      action: "user.role_changed",
+      actorId: actor?.id ?? "system",
+      actorName: actor?.name ?? "system",
+      details: {
+        userId: user.id,
+        email: user.email,
+        from: previousRole,
+        to: nextRole,
+        roleOverride: Boolean(user.roleOverride),
+        source: "admin",
+      },
+    });
   }
 
   await writeDatabase(db);
@@ -2918,6 +3007,8 @@ export interface UpdateUserProfileInput {
   avatarDisplay?: AvatarDisplay;
   currentPassword?: string;
   newPassword?: string;
+  locale?: Locale;
+  emailNotifications?: boolean;
 }
 
 export async function updateUserProfile(
@@ -2980,8 +3071,30 @@ export async function updateUserProfile(
     user.avatarDisplay = input.avatarDisplay;
   }
 
+  if (input.locale !== undefined) {
+    if (!isLocale(input.locale)) throw new Error("Langue invalide.");
+    user.locale = input.locale;
+  }
+
+  if (input.emailNotifications !== undefined) {
+    user.emailNotifications = Boolean(input.emailNotifications);
+  }
+
   await writeDatabase(db);
   return stripPassword(user);
+}
+
+/** Met à jour uniquement la langue préférée (sélecteur de langue de l'en-tête). */
+export async function updateUserLocale(
+  userId: string,
+  locale: Locale,
+): Promise<User | null> {
+  return mutateDatabase((db) => {
+    const user = db.users.find((item) => item.id === userId);
+    if (!user) return null;
+    user.locale = locale;
+    return stripPassword(user);
+  });
 }
 
 export async function deleteUser(userId: string): Promise<boolean> {
@@ -3054,6 +3167,214 @@ export async function updateUserRole(
 export async function deactivateUser(userId: string): Promise<boolean> {
   const updated = await updateUser(userId, { status: "suspended" });
   return updated !== null;
+}
+
+// ─── Invitations ────────────────────────────────────────────────────────────
+
+export type InvitationErrorCode =
+  | "alreadyUser"
+  | "alreadyPending"
+  | "notFound"
+  | "invalid"
+  | "expired"
+  | "revoked"
+  | "accepted";
+
+export class InvitationError extends Error {
+  constructor(public readonly code: InvitationErrorCode) {
+    super(code);
+    this.name = "InvitationError";
+  }
+}
+
+function invitationTtlMs(): number {
+  const days = Number(process.env.PROJECTOR_INVITATION_TTL_DAYS ?? "7");
+  return (Number.isFinite(days) && days > 0 ? days : 7) * 24 * 60 * 60 * 1000;
+}
+
+function hashInvitationToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function newInvitationToken(): { token: string; tokenHash: string } {
+  const token = randomBytes(32).toString("base64url");
+  return { token, tokenHash: hashInvitationToken(token) };
+}
+
+function getInvitationStatus(invitation: Invitation): InvitationStatus {
+  if (invitation.acceptedAt) return "accepted";
+  if (invitation.revokedAt) return "revoked";
+  if (new Date(invitation.expiresAt).getTime() < Date.now()) return "expired";
+  return "pending";
+}
+
+function toInvitationSummary(invitation: Invitation): InvitationSummary {
+  const { tokenHash: _tokenHash, ...rest } = invitation;
+  return { ...rest, status: getInvitationStatus(invitation) };
+}
+
+export async function listInvitations(): Promise<InvitationSummary[]> {
+  const db = await readDatabase();
+  return [...db.invitations]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(toInvitationSummary);
+}
+
+export interface CreateInvitationInput {
+  email: string;
+  name?: string;
+  role: UserRole;
+  permissions: Permission[];
+  locale: Locale;
+  message?: string;
+  invitedBy: string;
+  invitedByName: string;
+}
+
+export async function createInvitation(
+  input: CreateInvitationInput,
+): Promise<{ invitation: InvitationSummary; token: string }> {
+  const email = input.email.trim().toLowerCase();
+
+  return mutateDatabase((db) => {
+    if (db.users.some((user) => user.email.toLowerCase() === email)) {
+      throw new InvitationError("alreadyUser");
+    }
+
+    const now = Date.now();
+    for (const existing of db.invitations) {
+      if (
+        existing.email === email &&
+        getInvitationStatus(existing) === "pending"
+      ) {
+        throw new InvitationError("alreadyPending");
+      }
+    }
+
+    const { token, tokenHash } = newInvitationToken();
+    const invitation: Invitation = {
+      id: crypto.randomUUID(),
+      email,
+      name: input.name?.trim() || undefined,
+      role: input.role,
+      permissions:
+        input.role === "admin" ? [...ALL_PERMISSIONS] : input.permissions,
+      locale: input.locale,
+      message: input.message?.trim() || undefined,
+      tokenHash,
+      invitedBy: input.invitedBy,
+      invitedByName: input.invitedByName,
+      createdAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + invitationTtlMs()).toISOString(),
+    };
+
+    db.invitations.push(invitation);
+    return { invitation: toInvitationSummary(invitation), token };
+  });
+}
+
+/** Régénère le jeton (le jeton brut n'est jamais conservé) et prolonge la validité. */
+export async function renewInvitationToken(
+  invitationId: string,
+): Promise<{ invitation: InvitationSummary; token: string }> {
+  return mutateDatabase((db) => {
+    const invitation = db.invitations.find((item) => item.id === invitationId);
+    if (!invitation) throw new InvitationError("notFound");
+    if (invitation.acceptedAt) throw new InvitationError("accepted");
+
+    const { token, tokenHash } = newInvitationToken();
+    invitation.tokenHash = tokenHash;
+    invitation.revokedAt = undefined;
+    invitation.expiresAt = new Date(Date.now() + invitationTtlMs()).toISOString();
+    return { invitation: toInvitationSummary(invitation), token };
+  });
+}
+
+export async function recordInvitationEmailResult(
+  invitationId: string,
+  status: InvitationEmailStatus,
+  error?: string,
+): Promise<InvitationSummary | null> {
+  return mutateDatabase((db) => {
+    const invitation = db.invitations.find((item) => item.id === invitationId);
+    if (!invitation) return null;
+    invitation.emailStatus = status;
+    invitation.emailError = error?.slice(0, 500);
+    if (status === "sent") invitation.lastSentAt = new Date().toISOString();
+    return toInvitationSummary(invitation);
+  });
+}
+
+export async function revokeInvitation(
+  invitationId: string,
+): Promise<InvitationSummary> {
+  return mutateDatabase((db) => {
+    const invitation = db.invitations.find((item) => item.id === invitationId);
+    if (!invitation) throw new InvitationError("notFound");
+    if (invitation.acceptedAt) throw new InvitationError("accepted");
+    invitation.revokedAt = new Date().toISOString();
+    return toInvitationSummary(invitation);
+  });
+}
+
+export async function deleteInvitation(invitationId: string): Promise<boolean> {
+  return mutateDatabase((db) => {
+    const index = db.invitations.findIndex((item) => item.id === invitationId);
+    if (index === -1) return false;
+    db.invitations.splice(index, 1);
+    return true;
+  });
+}
+
+export async function getInvitationByToken(
+  token: string,
+): Promise<InvitationSummary | null> {
+  if (!token) return null;
+  const tokenHash = hashInvitationToken(token);
+  const db = await readDatabase();
+  const invitation = db.invitations.find((item) => item.tokenHash === tokenHash);
+  return invitation ? toInvitationSummary(invitation) : null;
+}
+
+export async function acceptInvitation(
+  token: string,
+  input: { name: string; password: string; locale?: Locale },
+): Promise<User> {
+  const tokenHash = hashInvitationToken(token);
+
+  return mutateDatabase((db) => {
+    const invitation = db.invitations.find((item) => item.tokenHash === tokenHash);
+    if (!invitation) throw new InvitationError("invalid");
+
+    const status = getInvitationStatus(invitation);
+    if (status !== "pending") throw new InvitationError(status);
+
+    if (db.users.some((user) => user.email.toLowerCase() === invitation.email)) {
+      throw new InvitationError("alreadyUser");
+    }
+
+    const user = buildDbUser({
+      email: invitation.email,
+      name: input.name.trim(),
+      password: input.password,
+      role: invitation.role,
+      permissions: invitation.permissions,
+      locale: input.locale ?? invitation.locale,
+      invitedBy: invitation.invitedBy,
+    });
+    db.users.push(user);
+
+    invitation.acceptedAt = new Date().toISOString();
+    invitation.acceptedUserId = user.id;
+
+    notifyInvitationAccepted(db.notifications, invitation.invitedBy, {
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    });
+
+    return stripPassword(user);
+  });
 }
 
 export async function listResourceGroups(): Promise<ResourceGroup[]> {
@@ -3233,4 +3554,230 @@ export async function setPortfolioSharedResources(
   portfolio.updatedAt = new Date().toISOString();
   await writeDatabase(db);
   return portfolio;
+}
+
+// ─── Microsoft Entra ID ─────────────────────────────────────────────────────
+
+export async function getEntraSettings(): Promise<EntraSettings> {
+  const db = await readDatabase();
+  return db.entraSettings;
+}
+
+export async function updateEntraUnknownUserPolicy(
+  policy: EntraUnknownUserPolicy,
+  actor: AuditActor,
+): Promise<EntraSettings> {
+  return mutateDatabase((db) => {
+    const previous = db.entraSettings.unknownUserPolicy;
+    db.entraSettings.unknownUserPolicy = policy;
+    appendAudit(db, {
+      action: "entra.settings_changed",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: { unknownUserPolicy: { from: previous, to: policy } },
+    });
+    return db.entraSettings;
+  });
+}
+
+export async function addEntraRoleMapping(
+  input: Pick<EntraRoleMapping, "type" | "value" | "role" | "label">,
+  actor: AuditActor,
+): Promise<EntraRoleMapping> {
+  return mutateDatabase((db) => {
+    const value = input.value.trim();
+    if (
+      db.entraSettings.mappings.some(
+        (mapping) =>
+          mapping.type === input.type &&
+          mapping.value.toLowerCase() === value.toLowerCase(),
+      )
+    ) {
+      throw new Error("duplicate");
+    }
+    const mapping: EntraRoleMapping = {
+      id: crypto.randomUUID(),
+      type: input.type,
+      value,
+      role: input.role,
+      label: input.label?.trim() || undefined,
+      createdAt: new Date().toISOString(),
+    };
+    db.entraSettings.mappings.push(mapping);
+    appendAudit(db, {
+      action: "entra.mapping_added",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: { type: mapping.type, value: mapping.value, role: mapping.role },
+    });
+    return mapping;
+  });
+}
+
+export async function deleteEntraRoleMapping(
+  mappingId: string,
+  actor: AuditActor,
+): Promise<boolean> {
+  return mutateDatabase((db) => {
+    const index = db.entraSettings.mappings.findIndex((m) => m.id === mappingId);
+    if (index === -1) return false;
+    const [removed] = db.entraSettings.mappings.splice(index, 1);
+    appendAudit(db, {
+      action: "entra.mapping_removed",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: { type: removed.type, value: removed.value, role: removed.role },
+    });
+    return true;
+  });
+}
+
+/** Journal d'audit plateforme (hors projet) : connexions Entra, rôles, réglages. */
+export async function listPlatformAuditLog(limit = 30): Promise<AuditLogEntry[]> {
+  const db = await readDatabase();
+  return db.auditLog
+    .filter((entry) => !entry.projectId)
+    .slice(-limit)
+    .reverse();
+}
+
+export interface EntraIdentity {
+  oid: string;
+  tenantId: string;
+  email: string;
+  name: string;
+  roles: string[];
+  groups: string[];
+}
+
+export type EntraLoginResult =
+  | { ok: true; user: User; linkedBy: "oid" | "email" | "invitation" | "mapping" }
+  | { ok: false; reason: "denied" | "pending" | "suspended" };
+
+function resolveMappedRole(
+  settings: EntraSettings,
+  identity: EntraIdentity,
+): UserRole | null {
+  const roleValues = new Set(identity.roles.map((role) => role.toLowerCase()));
+  const groupIds = new Set(identity.groups.map((group) => group.toLowerCase()));
+  const matched = settings.mappings
+    .filter((mapping) =>
+      mapping.type === "appRole"
+        ? roleValues.has(mapping.value.toLowerCase())
+        : groupIds.has(mapping.value.toLowerCase()),
+    )
+    .map((mapping) => mapping.role);
+  return highestRole(matched);
+}
+
+/**
+ * Résout une connexion Entra : liaison du compte (oid, puis e-mail, puis invitation),
+ * application du rôle selon la priorité
+ * « rôle fixé par un admin > correspondance Entra > invitation > politique par défaut ».
+ */
+export async function resolveEntraLogin(
+  identity: EntraIdentity,
+): Promise<EntraLoginResult> {
+  return mutateDatabase((db): EntraLoginResult => {
+    const now = new Date().toISOString();
+    const email = identity.email.trim().toLowerCase();
+    const mappedRole = resolveMappedRole(db.entraSettings, identity);
+    const audit = (action: string, details: Record<string, unknown>, actor?: DbUser) =>
+      appendAudit(db, {
+        action,
+        actorId: actor?.id ?? identity.oid,
+        actorName: actor?.name ?? identity.name,
+        details: { email, oid: identity.oid, ...details },
+      });
+
+    let user = db.users.find((item) => item.entraOid === identity.oid);
+    let linkedBy: "oid" | "email" | "invitation" | "mapping" = "oid";
+
+    if (!user && email) {
+      user = db.users.find((item) => item.email.toLowerCase() === email);
+      if (user) {
+        user.entraOid = identity.oid;
+        linkedBy = "email";
+      }
+    }
+
+    if (!user && email) {
+      const invitation = db.invitations.find(
+        (item) => item.email === email && getInvitationStatus(item) === "pending",
+      );
+      if (invitation) {
+        const role = mappedRole ?? invitation.role;
+        user = buildDbUser({
+          email,
+          name: invitation.name || identity.name || email,
+          password: randomBytes(32).toString("base64url"),
+          role,
+          permissions:
+            role === invitation.role ? invitation.permissions : defaultPermissionsForRole(role),
+          locale: invitation.locale,
+          invitedBy: invitation.invitedBy,
+        });
+        user.entraOid = identity.oid;
+        user.authSource = "entra";
+        db.users.push(user);
+        invitation.acceptedAt = now;
+        invitation.acceptedUserId = user.id;
+        notifyInvitationAccepted(db.notifications, invitation.invitedBy, {
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        });
+        linkedBy = "invitation";
+      }
+    }
+
+    if (!user) {
+      if (!mappedRole && db.entraSettings.unknownUserPolicy === "deny") {
+        audit("auth.entra_denied", { reason: "unknown_user" });
+        return { ok: false, reason: "denied" };
+      }
+      const role = mappedRole ?? "guest";
+      user = buildDbUser({
+        email: email || `${identity.oid}@entra.invalid`,
+        name: identity.name || email,
+        password: randomBytes(32).toString("base64url"),
+        role,
+        permissions: defaultPermissionsForRole(role),
+      });
+      user.entraOid = identity.oid;
+      user.authSource = "entra";
+      if (!mappedRole) {
+        user.status = "suspended";
+        user.pendingApproval = true;
+      }
+      db.users.push(user);
+      linkedBy = "mapping";
+      audit(mappedRole ? "auth.entra_user_created" : "auth.entra_pending", { role });
+      if (!mappedRole) return { ok: false, reason: "pending" };
+    }
+
+    if (!user.roleOverride && mappedRole && mappedRole !== user.role) {
+      const wouldDropLastAdmin =
+        user.role === "admin" && countActiveAdmins(db, user.id) === 0;
+      if (!wouldDropLastAdmin) {
+        const previous = user.role;
+        user.role = mappedRole;
+        user.permissions = defaultPermissionsForRole(mappedRole);
+        audit(
+          "user.role_changed",
+          { userId: user.id, from: previous, to: mappedRole, source: "entra_mapping" },
+          user,
+        );
+      }
+    }
+
+    if (!isUserActive(user)) {
+      audit("auth.entra_denied", { reason: user.pendingApproval ? "pending" : "suspended" }, user);
+      return { ok: false, reason: user.pendingApproval ? "pending" : "suspended" };
+    }
+
+    user.lastLoginAt = now;
+    audit("auth.entra_login", { linkedBy, role: user.role }, user);
+    return { ok: true, user: stripPassword(user), linkedBy };
+  });
 }

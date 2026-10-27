@@ -28,13 +28,13 @@ import {
 import { getSessionUser } from "@/lib/auth/session";
 import { canUserAssignTasksOnProject } from "@/lib/auth/task-assignment";
 import { formatDate } from "@/lib/utils";
-import { getPhaseLabel, HERMES_APPROACH_LABELS } from "@/lib/hermes/phases";
-import { getScenarioLabel } from "@/lib/hermes/project-tasks";
+import { localizeScenario, localizeTasks } from "@/lib/hermes/i18n";
 import { toAssigneeOptions } from "@/lib/users";
-import {
-  PROJECT_STATUS_LABELS,
-  type ProjectStatus,
-} from "@/types";
+import { ProjectLanguageSelect } from "@/components/project/project-language-select";
+import { getRequestTranslator } from "@/lib/i18n/server";
+import { normalizeLocale, toIntlLocale } from "@/lib/i18n/config";
+import { tDynamic } from "@/lib/i18n/translate";
+import type { ProjectStatus } from "@/types";
 
 const statusVariant: Record<
   ProjectStatus,
@@ -55,6 +55,7 @@ export default async function ProjectDetailPage({
 }: ProjectDetailPageProps) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  const { t, locale } = await getRequestTranslator();
 
   const { id } = await params;
   const project = await getProjectById(id);
@@ -63,7 +64,8 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
-  const tasks = await getTasksByProject(id);
+  const projectLocale = normalizeLocale(project.documentLocale);
+  const tasks = localizeTasks(await getTasksByProject(id), () => projectLocale);
   const schedule =
     (await getProjectScheduleSummary(id)) ?? {
       projectId: id,
@@ -108,25 +110,27 @@ export default async function ProjectDetailPage({
   const canAssign = canUserAssignTasksOnProject(user, project, portfolio);
   const canSubmitPhase = canUserActAsChefDeProjet(user, project, portfolio);
   const canApproveAsMandant = canUserActAsMandant(user, project);
-  const phaseLabel = getPhaseLabel(project.currentPhase, project.approach);
-  const scenarioLabel = getScenarioLabel(project.scenarioId);
+  const phaseLabel = tDynamic(t, `enums.phase.${project.currentPhase}`);
+  const scenarioLabel = localizeScenario(project.scenarioId, locale)?.label ?? null;
+  const canChangeLanguage =
+    canSubmitPhase || user.role === "admin";
 
   return (
     <>
       <Header
         title={project.name}
-        subtitle={`Phase actuelle : ${phaseLabel}`}
+        subtitle={t("projectPage.currentPhase", { phase: phaseLabel })}
         user={user}
       />
 
       <main className="p-8">
         <div className="mb-8 flex flex-wrap items-center gap-3">
           <Badge variant={statusVariant[project.status]}>
-            {PROJECT_STATUS_LABELS[project.status]}
+            {tDynamic(t, `enums.projectStatus.${project.status}`)}
           </Badge>
           <Badge variant="info">{phaseLabel}</Badge>
           <Badge variant="muted">
-            {HERMES_APPROACH_LABELS[project.approach]}
+            {tDynamic(t, `enums.approach.${project.approach}`)}
           </Badge>
           {scenarioLabel && (
             <Badge variant="muted">{scenarioLabel}</Badge>
@@ -135,7 +139,7 @@ export default async function ProjectDetailPage({
 
         <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="mb-6 text-lg font-semibold text-slate-900">
-            Cycle de vie HERMES5
+            {t("projectPage.lifecycle")}
           </h2>
           <PhaseTimeline
             currentPhase={project.currentPhase}
@@ -147,14 +151,14 @@ export default async function ProjectDetailPage({
           <div className="lg:col-span-2 space-y-6">
             <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">
-                Description
+                {t("projectPage.description")}
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-brand-muted">
                 {project.description}
               </p>
               <div className="mt-6">
                 <p className="mb-2 text-sm font-medium text-slate-700">
-                  Avancement global
+                  {t("projectPage.overallProgress")}
                 </p>
                 <ProgressBar value={project.progress} showLabel />
               </div>
@@ -197,17 +201,17 @@ export default async function ProjectDetailPage({
           <aside className="space-y-6">
             <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">
-                Informations
+                {t("projectPage.info")}
               </h2>
               <dl className="mt-4 space-y-4 text-sm">
                 <div>
-                  <dt className="text-brand-muted">Chef de projet</dt>
+                  <dt className="text-brand-muted">{t("projectPage.chef")}</dt>
                   <dd className="font-medium text-slate-900">
                     {project.chefDeProjet}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-brand-muted">Mandant</dt>
+                  <dt className="text-brand-muted">{t("projectPage.mandant")}</dt>
                   <dd className="font-medium text-slate-900">
                     {project.mandant}
                     {mandantUser && (
@@ -217,46 +221,58 @@ export default async function ProjectDetailPage({
                     )}
                     {!project.mandantUserId && (
                       <span className="mt-1 block text-xs text-amber-700">
-                        Compte non lié — assignez le mandant dans
-                        Administration.
+                        {t("projectPage.mandantNotLinked")}
                       </span>
                     )}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-brand-muted">Date de début</dt>
+                  <dt className="text-brand-muted">{t("projectPage.startDate")}</dt>
                   <dd className="font-medium text-slate-900">
-                    {formatDate(project.startDate)}
+                    {formatDate(project.startDate, locale)}
                   </dd>
                 </div>
                 {project.endDate && (
                   <div>
-                    <dt className="text-brand-muted">Date de fin prévue</dt>
+                    <dt className="text-brand-muted">{t("projectPage.endDate")}</dt>
                     <dd className="font-medium text-slate-900">
-                      {formatDate(project.endDate)}
+                      {formatDate(project.endDate, locale)}
                     </dd>
                   </div>
                 )}
                 {project.budget && (
                   <div>
-                    <dt className="text-brand-muted">Budget</dt>
+                    <dt className="text-brand-muted">{t("projectPage.budget")}</dt>
                     <dd className="font-medium text-slate-900">
-                      {project.budget.toLocaleString("fr-CH")} CHF
+                      {project.budget.toLocaleString(toIntlLocale(locale))} CHF
                     </dd>
                   </div>
                 )}
                 {project.budgetHours && (
                   <div>
-                    <dt className="text-brand-muted">Forfait heures</dt>
+                    <dt className="text-brand-muted">{t("projectPage.hours")}</dt>
                     <dd className="font-medium text-slate-900">
-                      {project.budgetHours.toLocaleString("fr-CH")} h
+                      {project.budgetHours.toLocaleString(toIntlLocale(locale))} h
                     </dd>
                   </div>
                 )}
                 <div>
-                  <dt className="text-brand-muted">Tâches</dt>
+                  <dt className="text-brand-muted">{t("projectPage.tasks")}</dt>
                   <dd className="font-medium text-slate-900">
-                    {project.tasksCompleted} / {project.tasksTotal} complétées
+                    {t("projectPage.tasksCompleted", {
+                      done: project.tasksCompleted,
+                      total: project.tasksTotal,
+                    })}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-brand-muted">{t("projects.language")}</dt>
+                  <dd className="mt-1">
+                    <ProjectLanguageSelect
+                      projectId={project.id}
+                      value={projectLocale}
+                      canEdit={canChangeLanguage}
+                    />
                   </dd>
                 </div>
               </dl>

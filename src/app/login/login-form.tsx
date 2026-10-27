@@ -3,15 +3,22 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Logo } from "@/components/ui/logo";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
+import { useI18n } from "@/lib/i18n/client";
+import { tDynamic } from "@/lib/i18n/translate";
 
-export function LoginForm() {
+export function LoginForm({ entraEnabled = false }: { entraEnabled?: boolean }) {
   const router = useRouter();
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") ?? "/";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const entraError = searchParams.get("error");
+  const [error, setError] = useState(
+    entraError?.startsWith("entra_") ? tDynamic(t, `entra.error_${entraError}`) : "",
+  );
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(event: React.FormEvent) {
@@ -29,14 +36,14 @@ export function LoginForm() {
       const data = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        setError(data.error ?? "Connexion impossible.");
+        setError(data.error ?? t("auth.failed"));
         return;
       }
 
       router.push(redirect);
       router.refresh();
     } catch {
-      setError("Erreur réseau. Veuillez réessayer.");
+      setError(t("common.networkError"));
     } finally {
       setLoading(false);
     }
@@ -51,25 +58,48 @@ export function LoginForm() {
 
         <div className="rounded-2xl border border-white/10 bg-brand-navy p-8 shadow-2xl">
           <h1 className="text-center text-2xl font-semibold text-white">
-            Connexion
+            {t("auth.title")}
           </h1>
           <p className="mt-2 text-center text-sm text-slate-400">
-            Plateforme de gestion de projets HERMES5
+            {t("auth.subtitle")}
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-            {error && (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                {error}
+          {error && (
+            <div className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {error}
+            </div>
+          )}
+
+          {entraEnabled && (
+            <>
+              <a
+                href={`/api/auth/entra/login?redirect=${encodeURIComponent(redirect)}`}
+                className="mt-6 flex w-full items-center justify-center gap-3 rounded-lg border border-white/15 bg-white py-2.5 text-sm font-semibold text-slate-900 shadow transition hover:bg-slate-100"
+              >
+                <svg aria-hidden="true" viewBox="0 0 21 21" className="h-4 w-4">
+                  <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                  <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                  <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                  <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+                </svg>
+                {t("entra.loginButton")}
+              </a>
+              <div className="mt-6 flex items-center gap-3 text-xs uppercase tracking-wider text-slate-500">
+                <span className="h-px flex-1 bg-white/10" />
+                {t("entra.orDivider")}
+                <span className="h-px flex-1 bg-white/10" />
               </div>
-            )}
+            </>
+          )}
+
+          <form onSubmit={handleSubmit} className="mt-6 space-y-5">
 
             <div>
               <label
                 htmlFor="email"
                 className="mb-1.5 block text-sm font-medium text-slate-300"
               >
-                E-mail
+                {t("common.email")}
               </label>
               <input
                 id="email"
@@ -88,7 +118,7 @@ export function LoginForm() {
                 htmlFor="password"
                 className="mb-1.5 block text-sm font-medium text-slate-300"
               >
-                Mot de passe
+                {t("common.password")}
               </label>
               <input
                 id="password"
@@ -106,13 +136,15 @@ export function LoginForm() {
               disabled={loading}
               className="gradient-brand w-full rounded-lg py-2.5 text-sm font-semibold text-white shadow-lg transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {loading ? "Connexion..." : "Se connecter"}
+              {loading ? t("auth.submitting") : t("auth.submit")}
             </button>
           </form>
         </div>
 
-        <p className="mt-6 text-center text-xs text-slate-500">
-          PROJECTOR — Conforme à la norme eCH-0054 (HERMES5)
+        <LanguageSwitcher variant="sidebar" className="mx-auto mt-6 max-w-[14rem]" />
+
+        <p className="mt-4 text-center text-xs text-slate-500">
+          {t("auth.footer")}
         </p>
       </div>
     </div>

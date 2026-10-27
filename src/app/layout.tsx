@@ -6,6 +6,9 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { listProjects, listPortfolios } from "@/lib/db/store";
 import { canUserManageProjectMandant } from "@/lib/hermes/project-roles";
 import { getPublicUrl } from "@/lib/env";
+import { I18nProvider } from "@/lib/i18n/client";
+import { getRequestTranslator } from "@/lib/i18n/server";
+import { getMessages } from "@/lib/i18n/translate";
 import "./globals.css";
 
 const inter = Inter({
@@ -13,15 +16,17 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(getPublicUrl()),
-  title: "PROJECTOR — Gestion de projets HERMES5",
-  description:
-    "Plateforme de gestion de projets conforme à la méthode HERMES5 (eCH-0054)",
-  icons: {
-    icon: "/favicon.svg",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getRequestTranslator();
+  return {
+    metadataBase: new URL(getPublicUrl()),
+    title: t("meta.title"),
+    description: t("meta.description"),
+    icons: {
+      icon: "/favicon.svg",
+    },
+  };
+}
 
 export default async function RootLayout({
   children,
@@ -29,6 +34,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const user = await getSessionUser();
+  const { locale } = await getRequestTranslator();
 
   let showAdministration = false;
   if (user) {
@@ -49,11 +55,13 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="fr">
+    <html lang={locale}>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <AppShell user={user} showAdministration={showAdministration}>
-          {children}
-        </AppShell>
+        <I18nProvider locale={locale} messages={getMessages(locale)}>
+          <AppShell user={user} showAdministration={showAdministration}>
+            {children}
+          </AppShell>
+        </I18nProvider>
       </body>
     </html>
   );

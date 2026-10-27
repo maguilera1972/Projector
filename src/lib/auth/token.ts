@@ -99,6 +99,7 @@ export async function verifySessionToken(
       role: payload.role,
       permissions: payload.permissions,
       avatarDisplay: payload.avatarDisplay ?? "initials",
+      locale: payload.locale,
     };
   } catch {
     return null;

@@ -4,8 +4,10 @@ import {
   deleteProject,
   getPortfolioById,
   getProjectById,
+  updateProjectLocale,
   updateProjectMandant,
 } from "@/lib/db/store";
+import { isLocale } from "@/lib/i18n/config";
 import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 import {
@@ -37,6 +39,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   const body = (await request.json()) as {
     portfolioId?: string | null;
     mandantUserId?: string | null;
+    documentLocale?: unknown;
   };
 
   try {
@@ -58,6 +61,18 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     if (!hasPermission(user, PERMISSIONS.PROJECTS_WRITE)) {
       return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
+    }
+
+    if ("documentLocale" in body) {
+      if (!isLocale(body.documentLocale)) {
+        return NextResponse.json({ error: "Langue invalide." }, { status: 400 });
+      }
+      const isChef = project.chefDeProjetId === user.id;
+      if (!isChef && !isPlatformAdmin(user) && !canUserManageProjectMandant(user, project, portfolio)) {
+        return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
+      }
+      const updated = await updateProjectLocale(id, body.documentLocale);
+      return NextResponse.json({ project: updated });
     }
 
     if (!isPlatformAdmin(user) && !canUserManageProjectMandant(user, project, portfolio)) {

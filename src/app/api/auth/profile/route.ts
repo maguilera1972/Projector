@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSession, getSessionUser } from "@/lib/auth/session";
 import { toSessionUser, type AvatarDisplay } from "@/lib/auth/permissions";
 import { getUserById, updateUserProfile } from "@/lib/db/store";
+import { isLocale } from "@/lib/i18n/config";
 
 export async function GET() {
   const session = await getSessionUser();
@@ -30,7 +31,13 @@ export async function PATCH(request: Request) {
       avatarDisplay?: AvatarDisplay;
       currentPassword?: string;
       newPassword?: string;
+      locale?: string;
+      emailNotifications?: boolean;
     };
+
+    if (body.locale !== undefined && !isLocale(body.locale)) {
+      return NextResponse.json({ error: "Langue invalide." }, { status: 400 });
+    }
 
     if (
       body.avatarDisplay !== undefined &&
@@ -49,6 +56,11 @@ export async function PATCH(request: Request) {
       avatarDisplay: body.avatarDisplay,
       currentPassword: body.currentPassword,
       newPassword: body.newPassword,
+      locale: isLocale(body.locale) ? body.locale : undefined,
+      emailNotifications:
+        typeof body.emailNotifications === "boolean"
+          ? body.emailNotifications
+          : undefined,
     });
 
     if (!updated) {

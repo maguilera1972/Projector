@@ -12,6 +12,7 @@ import {
   listGeneratedDocumentsByProject,
 } from "@/lib/db/store";
 import { canUserEditProjectDocuments } from "@/lib/hermes/project-roles";
+import { getRequestTranslator } from "@/lib/i18n/server";
 
 interface ProjectDocumentsPageProps {
   params: Promise<{ projectId: string }>;
@@ -20,6 +21,7 @@ interface ProjectDocumentsPageProps {
 export default async function ProjectDocumentsPage({
   params,
 }: ProjectDocumentsPageProps) {
+  const { t } = await getRequestTranslator();
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
@@ -48,7 +50,7 @@ export default async function ProjectDocumentsPage({
     <>
       <Header
         title={project.name}
-        subtitle={`${documents.length} document${documents.length !== 1 ? "s" : ""} HERMES généré${documents.length !== 1 ? "s" : ""}`}
+        subtitle={t("pages.documentsCount", { count: documents.length })}
         user={user}
       />
       <main className="p-8">

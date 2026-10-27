@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
+import { getRequestLocale } from "@/lib/i18n/server";
+import { renderNotification } from "@/lib/notifications/render";
 import {
   countUnreadNotifications,
   listNotificationsForUser,
@@ -12,12 +14,16 @@ export async function GET() {
     return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   }
 
+  const locale = await getRequestLocale();
   const [notifications, unreadCount] = await Promise.all([
     listNotificationsForUser(user.id),
     countUnreadNotifications(user.id),
   ]);
 
-  return NextResponse.json({ notifications, unreadCount });
+  return NextResponse.json({
+    notifications: notifications.map((item) => renderNotification(item, locale)),
+    unreadCount,
+  });
 }
 
 export async function POST() {

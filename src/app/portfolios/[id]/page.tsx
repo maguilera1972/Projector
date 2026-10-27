@@ -19,6 +19,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 import { formatDate } from "@/lib/utils";
 import { PORTFOLIO_STATUS_LABELS } from "@/types";
+import { getRequestTranslator } from "@/lib/i18n/server";
 
 interface PortfolioDetailPageProps {
   params: Promise<{ id: string }>;
@@ -27,6 +28,7 @@ interface PortfolioDetailPageProps {
 export default async function PortfolioDetailPage({
   params,
 }: PortfolioDetailPageProps) {
+  const { t } = await getRequestTranslator();
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
@@ -49,7 +51,7 @@ export default async function PortfolioDetailPage({
     <>
       <Header
         title={portfolio.name}
-        subtitle={`Responsable : ${portfolio.owner}`}
+        subtitle={t("pages.portfolioOwner", { owner: portfolio.owner })}
         user={user}
       />
 

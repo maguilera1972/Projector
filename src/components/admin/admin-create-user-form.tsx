@@ -5,13 +5,16 @@ import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
-  DEFAULT_USER_PERMISSIONS,
-  ROLE_LABELS,
+  defaultPermissionsForRole,
+  USER_ROLES,
   type UserRole,
 } from "@/lib/auth/permissions";
+import { useI18n } from "@/lib/i18n/client";
+import { tDynamic } from "@/lib/i18n/translate";
 
 export function AdminCreateUserForm() {
   const router = useRouter();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -50,14 +53,14 @@ export function AdminCreateUserForm() {
       };
 
       if (!response.ok) {
-        setError(data.error ?? "Création impossible.");
+        setError(data.error ?? t("admin.createFailed"));
         return;
       }
 
       handleClose();
       router.refresh();
     } catch {
-      setError("Erreur réseau. Veuillez réessayer.");
+      setError(t("common.networkError"));
     } finally {
       setLoading(false);
     }
@@ -71,7 +74,7 @@ export function AdminCreateUserForm() {
         className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
       >
         <Plus className="h-4 w-4" />
-        Créer un utilisateur
+        {t("admin.createUser")}
       </button>
 
       {open && (
@@ -88,13 +91,13 @@ export function AdminCreateUserForm() {
                   id="create-user-title"
                   className="text-lg font-semibold text-slate-900"
                 >
-                  Nouvel utilisateur
+                  {t("admin.newUser")}
                 </h3>
                 <button
                   type="button"
                   onClick={handleClose}
                   className="rounded p-1 text-brand-muted hover:bg-slate-100 hover:text-slate-700"
-                  aria-label="Fermer"
+                  aria-label={t("common.close")}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -108,7 +111,7 @@ export function AdminCreateUserForm() {
 
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <label className="block text-sm">
-                  <span className="font-medium text-slate-700">Nom complet</span>
+                  <span className="font-medium text-slate-700">{t("common.fullName")}</span>
                   <input
                     type="text"
                     required
@@ -117,12 +120,12 @@ export function AdminCreateUserForm() {
                       setForm((current) => ({ ...current, name: e.target.value }))
                     }
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-slate-900 focus:border-brand-indigo focus:outline-none focus:ring-1 focus:ring-brand-indigo"
-                    placeholder="Jean Dupont"
+                    placeholder={t("admin.namePlaceholder")}
                   />
                 </label>
 
                 <label className="block text-sm">
-                  <span className="font-medium text-slate-700">E-mail</span>
+                  <span className="font-medium text-slate-700">{t("common.email")}</span>
                   <input
                     type="email"
                     required
@@ -131,12 +134,12 @@ export function AdminCreateUserForm() {
                       setForm((current) => ({ ...current, email: e.target.value }))
                     }
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-slate-900 focus:border-brand-indigo focus:outline-none focus:ring-1 focus:ring-brand-indigo"
-                    placeholder="jean.dupont@exemple.ch"
+                    placeholder={t("admin.emailPlaceholder")}
                   />
                 </label>
 
                 <label className="block text-sm">
-                  <span className="font-medium text-slate-700">Mot de passe</span>
+                  <span className="font-medium text-slate-700">{t("common.password")}</span>
                   <input
                     type="password"
                     required
@@ -149,12 +152,12 @@ export function AdminCreateUserForm() {
                       }))
                     }
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-slate-900 focus:border-brand-indigo focus:outline-none focus:ring-1 focus:ring-brand-indigo"
-                    placeholder="Minimum 8 caractères"
+                    placeholder={t("admin.passwordPlaceholder")}
                   />
                 </label>
 
                 <label className="block text-sm">
-                  <span className="font-medium text-slate-700">Rôle</span>
+                  <span className="font-medium text-slate-700">{t("common.role")}</span>
                   <select
                     value={form.role}
                     onChange={(e) =>
@@ -165,16 +168,19 @@ export function AdminCreateUserForm() {
                     }
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-slate-900 focus:border-brand-indigo focus:outline-none focus:ring-1 focus:ring-brand-indigo"
                   >
-                    <option value="user">{ROLE_LABELS.user}</option>
-                    <option value="admin">{ROLE_LABELS.admin}</option>
+                    {USER_ROLES.map((role) => (
+                      <option key={role} value={role}>
+                        {tDynamic(t, `enums.role.${role}`)}
+                      </option>
+                    ))}
                   </select>
                 </label>
               </div>
 
-              {form.role === "user" && (
+              {form.role !== "admin" && (
                 <p className="mt-4 text-xs text-brand-muted">
-                  Permissions par défaut :{" "}
-                  {DEFAULT_USER_PERMISSIONS.map((permission) => (
+                  {t("admin.defaultPermissions")}{" "}
+                  {defaultPermissionsForRole(form.role).map((permission) => (
                     <Badge key={permission} variant="muted" className="mr-1 mt-1">
                       {permission}
                     </Badge>
@@ -184,7 +190,7 @@ export function AdminCreateUserForm() {
 
               {form.role === "admin" && (
                 <p className="mt-4 text-xs text-brand-muted">
-                  Un administrateur dispose de toutes les permissions système.
+                  {t("admin.adminAllPermissions")}
                 </p>
               )}
 
@@ -194,14 +200,14 @@ export function AdminCreateUserForm() {
                   disabled={loading}
                   className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
                 >
-                  {loading ? "Création…" : "Créer l'utilisateur"}
+                  {loading ? t("admin.creating") : t("admin.createSubmit")}
                 </button>
                 <button
                   type="button"
                   onClick={handleClose}
                   className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
-                  Annuler
+                  {t("common.cancel")}
                 </button>
               </div>
             </form>

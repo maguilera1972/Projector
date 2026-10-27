@@ -3,6 +3,7 @@ import { createProject, listProjects } from "@/lib/db/store";
 import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 import type { CreateProjectInput, HermesApproach } from "@/types";
+import { isLocale } from "@/lib/i18n/config";
 
 export async function GET() {
   const user = await getSessionUser();
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
               ? body.budgetHours
               : undefined,
           mandantUserId: body.mandantUserId,
+          documentLocale: isLocale(body.documentLocale) ? body.documentLocale : undefined,
         },
         user.id,
       );

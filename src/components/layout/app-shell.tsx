@@ -17,7 +17,7 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
 
-  if (pathname === "/login") {
+  if (pathname === "/login" || pathname.startsWith("/invitation/")) {
     return <>{children}</>;
   }
 

@@ -5,8 +5,10 @@ import { CreatePortfolioButton } from "@/components/portfolio/create-portfolio-b
 import { EmptyState } from "@/components/ui/empty-state";
 import { listPortfolios } from "@/lib/db/store";
 import { getSessionUser } from "@/lib/auth/session";
+import { getRequestTranslator } from "@/lib/i18n/server";
 
 export default async function PortfoliosPage() {
+  const { t } = await getRequestTranslator();
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
@@ -15,8 +17,8 @@ export default async function PortfoliosPage() {
   return (
     <>
       <Header
-        title="Portfolios"
-        subtitle="Regroupez et pilotez vos projets HERMES 5.1"
+        title={t("pages.portfoliosTitle")}
+        subtitle={t("pages.portfoliosSubtitle")}
         user={user}
       />
 

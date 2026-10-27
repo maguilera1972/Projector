@@ -1,8 +1,9 @@
-import { isUserActive, type DbUser } from "@/lib/auth/permissions";
+import { isUserActive, type DbUser, type UserRole } from "@/lib/auth/permissions";
 import { getPhaseLabel } from "@/lib/hermes/phases";
 import type {
   Notification,
   NotificationKind,
+  NotificationParams,
   PhaseValidation,
   Project,
 } from "@/types";
@@ -14,8 +15,16 @@ interface NotificationDraft {
   kind: NotificationKind;
   title: string;
   message: string;
+  params?: NotificationParams;
   href?: string;
   projectId?: string;
+}
+
+/** Notifications créées depuis le dernier enregistrement, en attente d'envoi par e-mail. */
+const pendingEmailQueue: Notification[] = [];
+
+export function drainPendingNotificationEmails(): Notification[] {
+  return pendingEmailQueue.splice(0, pendingEmailQueue.length);
 }
 
 export function resolveMandantUserId(
@@ -71,6 +80,7 @@ export function pushNotification(
     ...draft,
   };
   notifications.push(notification);
+  pendingEmailQueue.push(notification);
   return notification;
 }
 
@@ -93,6 +103,7 @@ export function notifyTaskAssigned(
     kind: "task_assigned",
     title: "Nouvelle tâche assignée",
     message: `« ${task.title} » sur le projet ${project.name}.`,
+    params: { taskTitle: task.title, projectName: project.name },
     href: `/taches`,
     projectId: project.id,
   });
@@ -114,6 +125,7 @@ export function notifyPhaseSubmitted(
     kind: "phase_submitted",
     title: "Validation de phase demandée",
     message: `${actorName} demande la libération de la phase ${phaseLabel} pour ${project.name}.`,
+    params: { actorName, phase: validation.fromPhase, projectName: project.name },
     href: projectHref(project.id),
     projectId: project.id,
   });
@@ -133,6 +145,7 @@ export function notifyPhaseApproved(
     kind: "phase_approved",
     title: "Phase validée",
     message: `${actorName} a confirmé la phase ${phaseLabel} pour ${project.name}.`,
+    params: { actorName, phase: validation.fromPhase, projectName: project.name },
     href: projectHref(project.id),
     projectId: project.id,
   });
@@ -152,6 +165,7 @@ export function notifyPhaseRejected(
     kind: "phase_rejected",
     title: "Validation de phase refusée",
     message: `${actorName} a refusé la libération de ${phaseLabel} pour ${project.name}.`,
+    params: { actorName, phase: validation.fromPhase, projectName: project.name },
     href: projectHref(project.id),
     projectId: project.id,
   });
@@ -173,6 +187,7 @@ export function notifyBudgetRevisionRequested(
     kind: "budget_revision_requested",
     title: "Révision budgétaire à valider",
     message: `${actorName} propose un budget de ${amount} CHF pour ${project.name}.`,
+    params: { actorName, amount: amountCHF, projectName: project.name },
     href: projectHref(project.id),
     projectId: project.id,
   });
@@ -191,6 +206,7 @@ export function notifyBudgetRevisionApproved(
     kind: "budget_revision_approved",
     title: "Révision budgétaire approuvée",
     message: `${actorName} a validé la révision à ${amount} CHF pour ${project.name}.`,
+    params: { actorName, amount: amountCHF, projectName: project.name },
     href: projectHref(project.id),
     projectId: project.id,
   });
@@ -209,6 +225,7 @@ export function notifyBudgetApprovalRequired(
     kind: "budget_approval_required",
     title: "Budget à valider",
     message: `Le budget du projet ${project.name} attend votre validation mandant.`,
+    params: { projectName: project.name },
     href: projectHref(project.id),
     projectId: project.id,
   });
@@ -226,7 +243,23 @@ export function notifyDocumentPvPending(
     kind: "document_pv_pending",
     title: "PV de séance à archiver",
     message: `« ${document.title} » — confirmez l'archivage dans le dossier projet.`,
+    params: { documentTitle: document.title, projectName: project.name },
     href: projectHref(project.id),
     projectId: project.id,
+  });
+}
+
+export function notifyInvitationAccepted(
+  notifications: Notification[],
+  inviterId: string,
+  account: { name: string; email: string; role: UserRole },
+): void {
+  pushNotification(notifications, {
+    userId: inviterId,
+    kind: "invitation_accepted",
+    title: "Invitation acceptée",
+    message: `${account.name} (${account.email}) a rejoint PROJECTOR.`,
+    params: { name: account.name, email: account.email, role: account.role },
+    href: "/parametres/administration",
   });
 }

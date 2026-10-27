@@ -21,19 +21,26 @@ import {
 import { listProjects, listTasks, listUsers, getPendingPvDocumentsForUser } from "@/lib/db/store";
 import { getSessionUser } from "@/lib/auth/session";
 import { formatDate } from "@/lib/utils";
-import { HERMES_REFERENCE_PHASES, getPhaseLabel } from "@/lib/hermes/phases";
+import { HERMES_REFERENCE_PHASES } from "@/lib/hermes/phases";
+import { getLocalizedPhases, localizeTasks } from "@/lib/hermes/i18n";
 import { getUserNameById } from "@/lib/users";
-import { TASK_STATUS_LABELS } from "@/types";
+import { getRequestTranslator } from "@/lib/i18n/server";
+import { normalizeLocale } from "@/lib/i18n/config";
+import { tDynamic } from "@/lib/i18n/translate";
 
 export default async function DashboardPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  const { t, locale } = await getRequestTranslator();
 
   const stats = await getDashboardStats(user.id);
   const overdueItems = await getUserOverdueItems(user.id);
   const pendingPvItems = await getPendingPvDocumentsForUser(user.id);
   const projects = await listProjects();
-  const tasks = await listTasks();
+  const projectLocale = new Map(
+    projects.map((p) => [p.id, normalizeLocale(p.documentLocale)]),
+  );
+  const tasks = localizeTasks(await listTasks(), (id) => projectLocale.get(id) ?? "fr");
   const users = await listUsers();
   const averageProgress = await getAverageProgress();
 
@@ -53,8 +60,8 @@ export default async function DashboardPage() {
   return (
     <>
       <Header
-        title="Tableau de bord"
-        subtitle={`Bonjour ${user.name.split(" ")[0]} — vue d'ensemble de vos projets HERMES5`}
+        title={t("dashboard.title")}
+        subtitle={t("dashboard.greeting", { name: user.name.split(" ")[0] })}
         user={user}
       />
 
@@ -63,34 +70,34 @@ export default async function DashboardPage() {
 
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-5">
           <StatCard
-            title="Projets actifs"
+            title={t("dashboard.activeProjects")}
             value={stats.activeProjects}
             icon={FolderKanban}
-            trend={`${stats.totalProjects} projets au total`}
+            trend={t("dashboard.totalProjects", { count: stats.totalProjects })}
           />
           <StatCard
-            title="Tâches en cours"
+            title={t("dashboard.tasksInProgress")}
             value={stats.pendingTasks}
             icon={CheckSquare}
-            trend={`${stats.completedTasks} terminées`}
+            trend={t("dashboard.completedCount", { count: stats.completedTasks })}
           />
           <StatCard
-            title="Mes retards"
+            title={t("dashboard.myOverdue")}
             value={stats.myOverdueTasks}
             icon={AlertTriangle}
             trend={
               stats.myOverdueTasks > 0
-                ? "Action requise"
-                : "Aucun retard"
+                ? t("dashboard.actionRequired")
+                : t("dashboard.noDelay")
             }
           />
           <StatCard
-            title="Échéances (14 j.)"
+            title={t("dashboard.deadlines14")}
             value={stats.upcomingDeadlines}
             icon={Clock}
           />
           <StatCard
-            title="Avancement moyen"
+            title={t("dashboard.averageProgress")}
             value={`${averageProgress}%`}
             icon={TrendingUp}
           />
@@ -104,14 +111,14 @@ export default async function DashboardPage() {
           <section className="lg:col-span-2">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">
-                Projets en cours
+                {t("dashboard.currentProjects")}
               </h2>
             </div>
             {recentProjects.length === 0 ? (
               <EmptyState
-                title="Aucun projet"
-                description="Bienvenue sur PROJECTOR. Créez votre premier projet pour commencer à piloter vos activités selon la méthode HERMES5."
-                actionLabel="Créer un projet"
+                title={t("dashboard.noProjects")}
+                description={t("dashboard.welcome")}
+                actionLabel={t("dashboard.createProject")}
                 user={user}
               />
             ) : (
@@ -125,24 +132,19 @@ export default async function DashboardPage() {
 
           <section>
             <h2 className="mb-4 text-lg font-semibold text-slate-900">
-              {myTasks.length > 0 ? "Mes tâches" : "Tâches à venir"}
+              {myTasks.length > 0 ? t("dashboard.myTasks") : t("dashboard.upcomingTasks")}
             </h2>
             {upcomingTasks.length === 0 ? (
               <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
                 <p className="text-sm text-brand-muted">
-                  Aucune tâche en attente.
+                  {t("dashboard.noPendingTasks")}
                 </p>
               </div>
             ) : (
               <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
                 <ul className="divide-y divide-slate-100">
                   {upcomingTasks.map((task) => {
-                    const project = projects.find(
-                      (p) => p.id === task.projectId,
-                    );
-                    const phaseLabel = project
-                      ? getPhaseLabel(task.phase, project.approach)
-                      : task.phase;
+                    const phaseLabel = tDynamic(t, `enums.phase.${task.phase}`);
                     return (
                       <li key={task.id} className="p-4">
                         <p className="text-sm font-medium text-slate-900">
@@ -157,11 +159,11 @@ export default async function DashboardPage() {
                         <div className="mt-2 flex items-center justify-between text-xs text-brand-muted">
                           <span>
                             {getUserNameById(task.assigneeId, users) ??
-                              "Non assigné"}
+                              t("common.unassigned")}
                           </span>
-                          <span>{TASK_STATUS_LABELS[task.status]}</span>
+                          <span>{tDynamic(t, `enums.taskStatus.${task.status}`)}</span>
                           {task.dueDate && (
-                            <span>{formatDate(task.dueDate)}</span>
+                            <span>{formatDate(task.dueDate, locale)}</span>
                           )}
                         </div>
                       </li>
@@ -173,10 +175,10 @@ export default async function DashboardPage() {
 
             <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <h3 className="text-sm font-semibold text-slate-900">
-                Phases HERMES5
+                {t("dashboard.hermesPhases")}
               </h3>
               <ul className="mt-4 space-y-3">
-                {HERMES_REFERENCE_PHASES.map((phase) => (
+                {getLocalizedPhases(HERMES_REFERENCE_PHASES, "classic", locale).map((phase) => (
                   <li key={phase.id} className="flex gap-3">
                     <span className="gradient-brand flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
                       {phase.order}

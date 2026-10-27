@@ -1,9 +1,11 @@
-import { getScenarioById, getReferential } from "@/lib/hermes/referential";
+import { getReferential } from "@/lib/hermes/referential";
+import { getNextPhase } from "@/lib/hermes/phases";
 import {
-  getNextPhase,
-  getPhaseLabel,
-  HERMES_APPROACH_LABELS,
-} from "@/lib/hermes/phases";
+  localizeDocumentTemplateTitle,
+  localizeScenario,
+} from "@/lib/hermes/i18n";
+import { toIntlLocale } from "@/lib/i18n/config";
+import { getTranslator, tDynamic } from "@/lib/i18n/translate";
 import { getQualityGateForPhase } from "@/lib/hermes/referential";
 import { formatDate } from "@/lib/utils";
 import type {
@@ -16,20 +18,14 @@ import type {
 } from "@/types";
 import type { HermesDocumentTemplate } from "@/lib/documents/templates";
 
-const BUDGET_STATUS: Record<string, { fr: string; en: string }> = {
-  draft: { fr: "Brouillon", en: "Draft" },
-  pending_mandant: { fr: "En attente mandant", en: "Pending sponsor" },
-  approved: { fr: "Validé", en: "Approved" },
-};
-
 function formatBudget(amount?: number, locale: DocumentLocale = "fr"): string {
-  if (!amount) return locale === "en" ? "—" : "—";
-  return `${amount.toLocaleString(locale === "en" ? "en-CH" : "fr-CH")} CHF`;
+  if (!amount) return "—";
+  return `${amount.toLocaleString(toIntlLocale(locale))} CHF`;
 }
 
-function formatHours(hours?: number, locale: DocumentLocale = "fr"): string {
+function formatHours(hours?: number): string {
   if (!hours) return "—";
-  return locale === "en" ? `${hours} h` : `${hours} h`;
+  return `${hours} h`;
 }
 
 function buildTasksList(
@@ -37,19 +33,15 @@ function buildTasksList(
   phase: HermesPhaseId,
   locale: DocumentLocale,
 ): string {
+  const t = getTranslator(locale);
   const phaseTasks = tasks.filter((task) => task.phase === phase);
   if (phaseTasks.length === 0) {
-    return locale === "en" ? "- *(no tasks)*" : "- *(aucune tâche)*";
+    return `- *(${t("docs.noTasks")})*`;
   }
 
   return phaseTasks
     .map((task) => {
-      const status =
-        task.status === "termine"
-          ? locale === "en"
-            ? "done"
-            : "terminé"
-          : task.status;
+      const status = tDynamic(t, `enums.taskStatus.${task.status}`);
       return `- ${task.title} (${task.progress ?? 0} % — ${status})`;
     })
     .join("\n");
@@ -65,15 +57,18 @@ export function mergeDocumentTemplate(
   version: number,
 ): { title: string; contentMarkdown: string } {
   const approach = project.approach;
-  const scenario = project.scenarioId
-    ? getScenarioById(project.scenarioId)
-    : undefined;
+  const t = getTranslator(locale);
+  const scenario = localizeScenario(project.scenarioId, locale);
   const gate = getQualityGateForPhase(fromPhase, approach);
   const nextPhase = getNextPhase(fromPhase, approach);
-  const body = locale === "en" ? template.bodyEn : template.bodyFr;
-  const title = locale === "en" ? template.titleEn : template.titleFr;
-  const budgetStatusLabel =
-    BUDGET_STATUS[project.budgetStatus]?.[locale] ?? project.budgetStatus;
+  // Corps rédigés en FR et EN uniquement : les autres langues utilisent l'anglais
+  // avec les libellés (titres, phases, statuts) traduits.
+  const body = locale === "fr" ? template.bodyFr : template.bodyEn;
+  const title = localizeDocumentTemplateTitle(template.id, locale, {
+    fr: template.titleFr,
+    en: template.titleEn,
+  });
+  const budgetStatusLabel = tDynamic(t, `enums.budgetStatus.${project.budgetStatus}`);
 
   const validationDate =
     validation.approvedAt?.slice(0, 10) ??
@@ -81,45 +76,33 @@ export function mergeDocumentTemplate(
     validation.submittedAt.slice(0, 10);
 
   const validationMode =
-    validation.mode === "session"
-      ? locale === "en"
-        ? "Session meeting"
-        : "Séance"
-      : locale === "en"
-        ? "Online"
-        : "En ligne";
+    validation.mode === "session" ? t("docs.session") : t("docs.online");
 
   const replacements: Record<string, string> = {
     "project.name": project.name,
-    "project.description": project.description || (locale === "en" ? "[to be completed]" : "[à compléter]"),
+    "project.description": project.description || t("docs.toBeCompleted"),
     "project.mandant": project.mandant || "—",
     "project.chefDeProjet": project.chefDeProjet || "—",
     "project.budgetFormatted": formatBudget(project.budget, locale),
-    "project.budgetHoursFormatted": formatHours(project.budgetHours, locale),
+    "project.budgetHoursFormatted": formatHours(project.budgetHours),
     "project.budgetStatusLabel": budgetStatusLabel,
-    "project.startDate": formatDate(project.startDate),
-    "project.endDate": project.endDate ? formatDate(project.endDate) : "—",
+    "project.startDate": formatDate(project.startDate, locale),
+    "project.endDate": project.endDate ? formatDate(project.endDate, locale) : "—",
     "project.progress": String(project.progress),
     "project.tasksCompleted": String(project.tasksCompleted),
     "project.tasksTotal": String(project.tasksTotal),
-    "scenario.label":
-      scenario && locale === "en" ? scenario.labelEn : scenario?.labelFr ?? "—",
-    "approach.label": HERMES_APPROACH_LABELS[approach],
-    "phase.label": getPhaseLabel(fromPhase, approach),
+    "scenario.label": scenario?.label ?? "—",
+    "approach.label": tDynamic(t, `enums.approach.${approach}`),
+    "phase.label": tDynamic(t, `enums.phase.${fromPhase}`),
     "phase.nextLabel": nextPhase
-      ? getPhaseLabel(nextPhase, approach)
-      : locale === "en"
-        ? "Closure"
-        : "Clôture",
+      ? tDynamic(t, `enums.phase.${nextPhase}`)
+      : t("docs.closure"),
     "phase.tasksList": buildTasksList(tasks, fromPhase, locale),
-    "gate.milestone":
-      gate && locale === "en"
-        ? gate.milestoneFr
-        : gate?.milestoneFr ?? "—",
+    "gate.milestone": gate?.milestoneFr ?? "—",
     "validation.signature": validation.signatureText ?? "—",
-    "validation.date": formatDate(validationDate),
+    "validation.date": formatDate(validationDate, locale),
     "validation.mode": validationMode,
-    "generatedAt": new Date().toLocaleString(locale === "en" ? "en-CH" : "fr-CH"),
+    "generatedAt": new Date().toLocaleString(toIntlLocale(locale)),
     "document.version": String(version),
     "hermes.version": getReferential().version,
   };

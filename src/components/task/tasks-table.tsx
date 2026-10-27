@@ -6,14 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { TaskAssigneeSelect } from "@/components/task/task-assignee-select";
 import { TaskEditDialog } from "@/components/task/task-edit-dialog";
 import { TaskScheduleBadge } from "@/components/task/task-schedule-badge";
-import { getPhaseLabel } from "@/lib/hermes/phases";
 import type { AssigneeOption } from "@/lib/users";
-import {
-  TASK_STATUS_LABELS,
-  type Project,
-  type Task,
-  type TaskStatus,
-} from "@/types";
+import type { Project, Task, TaskStatus } from "@/types";
+import { useI18n } from "@/lib/i18n/client";
+import { tDynamic } from "@/lib/i18n/translate";
 
 const taskStatusVariant: Record<
   TaskStatus,
@@ -39,6 +35,7 @@ export function TasksTable({
   canAssignByProjectId,
 }: TasksTableProps) {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const { t } = useI18n();
 
   return (
     <>
@@ -46,26 +43,24 @@ export function TasksTable({
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-100 bg-slate-50">
             <tr>
-              <th className="px-6 py-4 font-semibold text-slate-700">Tâche</th>
-              <th className="px-6 py-4 font-semibold text-slate-700">Projet</th>
-              <th className="px-6 py-4 font-semibold text-slate-700">Module</th>
-              <th className="px-6 py-4 font-semibold text-slate-700">Phase</th>
+              <th className="px-6 py-4 font-semibold text-slate-700">{t("tasksPage.task")}</th>
+              <th className="px-6 py-4 font-semibold text-slate-700">{t("tasksPage.project")}</th>
+              <th className="px-6 py-4 font-semibold text-slate-700">{t("tasksPage.module")}</th>
+              <th className="px-6 py-4 font-semibold text-slate-700">{t("tasksPage.phase")}</th>
               <th className="px-6 py-4 font-semibold text-slate-700">
-                Planification
+                {t("tasksPage.planning")}
               </th>
               <th className="px-6 py-4 font-semibold text-slate-700">
-                Avancement
+                {t("tasksPage.progress")}
               </th>
-              <th className="px-6 py-4 font-semibold text-slate-700">Assigné</th>
-              <th className="px-6 py-4 font-semibold text-slate-700">Statut</th>
+              <th className="px-6 py-4 font-semibold text-slate-700">{t("tasksPage.assignee")}</th>
+              <th className="px-6 py-4 font-semibold text-slate-700">{t("tasksPage.status")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {tasks.map((task) => {
               const project = projects.find((p) => p.id === task.projectId);
-              const phaseLabel = project
-                ? getPhaseLabel(task.phase, project.approach)
-                : task.phase;
+              const phaseLabel = tDynamic(t, `enums.phase.${task.phase}`);
 
               return (
                 <tr key={task.id} className="hover:bg-slate-50/50">
@@ -109,7 +104,7 @@ export function TasksTable({
                   </td>
                   <td className="px-6 py-4">
                     <Badge variant={taskStatusVariant[task.status]}>
-                      {TASK_STATUS_LABELS[task.status]}
+                      {tDynamic(t, `enums.taskStatus.${task.status}`)}
                     </Badge>
                   </td>
                 </tr>

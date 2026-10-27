@@ -5,8 +5,10 @@ import { DocumentsIndexExport } from "@/components/project/pdf-export-bar";
 import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 import { listProjectGeneratedDocumentSummaries } from "@/lib/db/store";
+import { getRequestTranslator } from "@/lib/i18n/server";
 
 export default async function DocumentsPage() {
+  const { t } = await getRequestTranslator();
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
@@ -23,8 +25,8 @@ export default async function DocumentsPage() {
   return (
     <>
       <Header
-        title="Documents"
-        subtitle="Livrables HERMES générés automatiquement à la validation de phase"
+        title={t("pages.documentsTitle")}
+        subtitle={t("pages.documentsSubtitle")}
         user={user}
       />
       <main className="p-8">

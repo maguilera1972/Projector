@@ -1,16 +1,18 @@
 import { redirect } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { getSessionUser } from "@/lib/auth/session";
+import { getRequestTranslator } from "@/lib/i18n/server";
 
 export default async function RapportsPage() {
+  const { t } = await getRequestTranslator();
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
   return (
     <>
       <Header
-        title="Rapports"
-        subtitle="Indicateurs, tableaux de bord et rapports d'avancement"
+        title={t("pages.reportsTitle")}
+        subtitle={t("pages.reportsSubtitle")}
         user={user}
       />
       <main className="flex flex-1 items-center justify-center p-8">

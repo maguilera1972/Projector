@@ -1,4 +1,8 @@
+"use client";
+
 import { getPhasesForApproach, getPhaseLabel } from "@/lib/hermes/phases";
+import { useI18n } from "@/lib/i18n/client";
+import { tDynamic } from "@/lib/i18n/translate";
 import type { HermesApproach, HermesPhaseId } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +17,7 @@ export function PhaseTimeline({
   approach,
   className,
 }: PhaseTimelineProps) {
+  const { t } = useI18n();
   const phases = getPhasesForApproach(approach);
   const currentOrder =
     phases.find((p) => p.id === currentPhase)?.order ?? 1;
@@ -46,7 +51,7 @@ export function PhaseTimeline({
                     isCurrent ? "gradient-brand-text" : "text-brand-muted",
                   )}
                 >
-                  {phase.label}
+                  {tDynamic(t, `enums.phase.${phase.id}`)}
                 </p>
               </div>
               {index < phases.length - 1 && (

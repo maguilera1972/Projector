@@ -6,6 +6,12 @@ import { AdminUsersTable } from "@/components/admin/admin-users-table";
 import { AdminProjectsTable } from "@/components/admin/admin-projects-table";
 import { AdminPortfoliosTable } from "@/components/admin/admin-portfolios-table";
 import { ProjectMandantAssignmentTable } from "@/components/admin/project-mandant-assignment-table";
+import { AdminInvitationsPanel } from "@/components/admin/admin-invitations-panel";
+import { AdminMailPanel } from "@/components/admin/admin-mail-panel";
+import { AdminEntraPanel } from "@/components/admin/admin-entra-panel";
+import { getEntraRedirectUri, isEntraLoginEnabled } from "@/lib/auth/entra";
+import { getRequestTranslator } from "@/lib/i18n/server";
+import { getMailSender } from "@/lib/mail/graph";
 import {
   listUsers,
   listAllUsers,
@@ -13,9 +19,12 @@ import {
   listPortfolios,
   listTasks,
   listActivities,
+  listInvitations,
+  getEntraSettings,
+  listPlatformAuditLog,
 } from "@/lib/db/store";
 import { getSessionUser } from "@/lib/auth/session";
-import { ALL_PERMISSIONS, isUserActive } from "@/lib/auth/permissions";
+import { ALL_PERMISSIONS, hasPermission, isUserActive, PERMISSIONS } from "@/lib/auth/permissions";
 import {
   canUserManageProjectMandant,
   isPlatformAdmin,
@@ -29,6 +38,7 @@ export const revalidate = 0;
 export default async function AdministrationPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  const { t } = await getRequestTranslator();
 
   const projects = await listProjects();
   const portfolios = await listPortfolios(true);
@@ -53,6 +63,11 @@ export default async function AdministrationPage() {
   const assigneeOptions = toAssigneeOptions(activeUsers);
   const tasks = isAdmin ? await listTasks() : [];
   const activities = isAdmin ? await listActivities() : [];
+  const canInvite = hasPermission(user, PERMISSIONS.USERS_WRITE);
+  const invitations = canInvite ? await listInvitations() : [];
+  const mailSender = getMailSender();
+  const entraSettings = isAdmin ? await getEntraSettings() : null;
+  const platformAudit = isAdmin ? await listPlatformAuditLog(40) : [];
 
   const deletionBlockers = isAdmin
     ? Object.fromEntries(
@@ -81,12 +96,8 @@ export default async function AdministrationPage() {
   return (
     <>
       <Header
-        title="Administration"
-        subtitle={
-          isAdmin
-            ? "Gestion des utilisateurs, mandants et permissions"
-            : "Assignation des mandants pour vos projets"
-        }
+        title={t("admin.title")}
+        subtitle={isAdmin ? t("admin.subtitleAdmin") : t("admin.subtitleMandant")}
         user={user}
       />
 
@@ -95,23 +106,24 @@ export default async function AdministrationPage() {
           <>
             <div className="mb-8 grid gap-6 sm:grid-cols-3">
               <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-sm text-brand-muted">Utilisateurs actifs</p>
+                <p className="text-sm text-brand-muted">{t("admin.activeUsers")}</p>
                 <p className="mt-1 text-3xl font-bold text-slate-900">
                   {allUsers.filter(isUserActive).length}
                 </p>
                 <p className="mt-1 text-xs text-brand-muted">
-                  {allUsers.filter((account) => account.status === "suspended").length}{" "}
-                  suspendu(s)
+                  {t("admin.suspendedCount", {
+                    count: allUsers.filter((account) => account.status === "suspended").length,
+                  })}
                 </p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-sm text-brand-muted">Administrateurs</p>
+                <p className="text-sm text-brand-muted">{t("admin.admins")}</p>
                 <p className="mt-1 text-3xl font-bold text-slate-900">
                   {allUsers.filter((account) => account.role === "admin").length}
                 </p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-sm text-brand-muted">Permissions système</p>
+                <p className="text-sm text-brand-muted">{t("admin.systemPermissions")}</p>
                 <p className="mt-1 text-3xl font-bold text-slate-900">
                   {ALL_PERMISSIONS.length}
                 </p>
@@ -122,13 +134,10 @@ export default async function AdministrationPage() {
               <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">
-                    Utilisateurs
+                    {t("admin.usersTitle")}
                   </h2>
                   <p className="mt-1 max-w-2xl text-sm text-brand-muted">
-                    Créez, modifiez ou supprimez des comptes. La suppression
-                    n&apos;est possible que si l&apos;utilisateur n&apos;est rattaché
-                    à aucun projet actif (mandant, chef de projet ou assignation
-                    de tâche).
+                    {t("admin.usersDescription")}
                   </p>
                 </div>
                 <AdminCreateUserForm />
@@ -144,19 +153,34 @@ export default async function AdministrationPage() {
           </>
         )}
 
+        {canInvite && (
+          <AdminInvitationsPanel
+            invitations={invitations}
+            currentUserIsAdmin={isAdmin}
+            mailConfigured={mailSender !== null}
+          />
+        )}
+
+        {isAdmin && entraSettings && (
+          <AdminEntraPanel
+            enabled={isEntraLoginEnabled()}
+            redirectUri={getEntraRedirectUri()}
+            settings={entraSettings}
+            auditLog={platformAudit}
+          />
+        )}
+
+        {isAdmin && <AdminMailPanel sender={mailSender} />}
+
         <section
-          className={`rounded-xl border border-slate-200 bg-white shadow-sm ${isAdmin ? "mt-8" : ""}`}
+          className={`rounded-xl border border-slate-200 bg-white shadow-sm ${isAdmin || canInvite ? "mt-8" : ""}`}
         >
           <div className="border-b border-slate-100 px-6 py-4">
             <h2 className="text-lg font-semibold text-slate-900">
-              Mandants de projet
+              {t("admin.mandantsTitle")}
             </h2>
             <p className="mt-1 text-sm text-brand-muted">
-              Liez chaque projet à un <strong>utilisateur mandant</strong> du
-              système. Seul cet utilisateur pourra valider le budget et
-              confirmer les libérations de phase (signature HERMES). Sans
-              compte lié, les demandes de validation ne pourront pas être
-              traitées par le mandant dans l&apos;application.
+              {t("admin.mandantsDescription")}
             </p>
           </div>
           <ProjectMandantAssignmentTable
@@ -172,11 +196,10 @@ export default async function AdministrationPage() {
             <section className="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-6 py-4">
                 <h2 className="text-lg font-semibold text-slate-900">
-                  Gestion des portfolios
+                  {t("admin.portfoliosTitle")}
                 </h2>
                 <p className="mt-1 text-sm text-brand-muted">
-                  Suppression définitive d&apos;un portfolio. Tous les projets
-                  associés (et leurs tâches) seront également supprimés.
+                  {t("admin.portfoliosDescription")}
                 </p>
               </div>
               <AdminPortfoliosTable
@@ -188,11 +211,10 @@ export default async function AdministrationPage() {
             <section className="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-6 py-4">
                 <h2 className="text-lg font-semibold text-slate-900">
-                  Gestion des projets
+                  {t("admin.projectsTitle")}
                 </h2>
                 <p className="mt-1 text-sm text-brand-muted">
-                  Suppression définitive d&apos;un projet, quel que soit son
-                  statut.
+                  {t("admin.projectsDescription")}
                 </p>
               </div>
               <AdminProjectsTable
@@ -203,7 +225,7 @@ export default async function AdministrationPage() {
 
             <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">
-                Permissions disponibles
+                {t("admin.availablePermissions")}
               </h2>
               <div className="mt-4 flex flex-wrap gap-2">
                 {ALL_PERMISSIONS.map((permission) => (

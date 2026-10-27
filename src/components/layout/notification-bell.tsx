@@ -10,14 +10,19 @@ import {
   FileText,
   Loader2,
   ShieldCheck,
+  UserPlus,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
 import type { Notification, NotificationKind } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n/client";
+import type { Locale } from "@/lib/i18n/config";
+import type { Translator } from "@/lib/i18n/translate";
 
 const KIND_ICONS: Record<NotificationKind, LucideIcon> = {
   task_assigned: ClipboardList,
+  invitation_accepted: UserPlus,
   phase_submitted: ShieldCheck,
   phase_approved: ShieldCheck,
   phase_rejected: ShieldCheck,
@@ -27,18 +32,19 @@ const KIND_ICONS: Record<NotificationKind, LucideIcon> = {
   document_pv_pending: FileText,
 };
 
-function relativeTime(iso: string): string {
+function relativeTime(iso: string, t: Translator, locale: Locale): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return "À l'instant";
-  if (minutes < 60) return `Il y a ${minutes} min`;
+  if (minutes < 1) return t("notifications.justNow");
+  if (minutes < 60) return t("notifications.minutesAgo", { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `Il y a ${hours} h`;
-  return formatDate(iso.slice(0, 10));
+  if (hours < 24) return t("notifications.hoursAgo", { count: hours });
+  return formatDate(iso.slice(0, 10), locale);
 }
 
 export function NotificationBell() {
   const router = useRouter();
+  const { t, locale } = useI18n();
   const panelRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -141,7 +147,7 @@ export function NotificationBell() {
           if (!open) void loadNotifications();
         }}
         className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50"
-        aria-label="Notifications"
+        aria-label={t("notifications.title")}
         aria-expanded={open}
       >
         <Bell className="h-5 w-5" />
@@ -156,7 +162,7 @@ export function NotificationBell() {
         <div className="absolute right-0 top-full z-50 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-900">
-              Notifications
+              {t("notifications.title")}
             </h2>
             {unreadCount > 0 && (
               <button
@@ -170,7 +176,7 @@ export function NotificationBell() {
                 ) : (
                   <CheckCheck className="h-3.5 w-3.5" />
                 )}
-                Tout marquer lu
+                {t("notifications.markAll")}
               </button>
             )}
           </div>
@@ -178,11 +184,11 @@ export function NotificationBell() {
           <div className="max-h-[min(24rem,60vh)] overflow-y-auto">
             {loading ? (
               <p className="px-4 py-8 text-center text-sm text-brand-muted">
-                Chargement…
+                {t("common.loading")}
               </p>
             ) : notifications.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-brand-muted">
-                Aucune notification pour le moment.
+                {t("notifications.empty")}
               </p>
             ) : (
               <ul className="divide-y divide-slate-100">
@@ -227,7 +233,7 @@ export function NotificationBell() {
                             {notification.message}
                           </span>
                           <span className="mt-1 block text-[11px] text-slate-400">
-                            {relativeTime(notification.createdAt)}
+                            {relativeTime(notification.createdAt, t, locale)}
                           </span>
                         </span>
                       </button>
@@ -244,7 +250,7 @@ export function NotificationBell() {
               onClick={() => setOpen(false)}
               className="text-xs text-brand-muted hover:text-slate-700"
             >
-              Préférences de notification — bientôt
+              {t("notifications.preferences")}
             </Link>
           </div>
         </div>

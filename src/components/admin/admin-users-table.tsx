@@ -7,15 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/user/user-avatar";
 import {
   ALL_PERMISSIONS,
-  DEFAULT_USER_PERMISSIONS,
-  ROLE_LABELS,
-  USER_STATUS_LABELS,
+  defaultPermissionsForRole,
+  USER_ROLES,
   type Permission,
   type User,
   type UserRole,
   type UserStatus,
 } from "@/lib/auth/permissions";
 import { formatDate } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n/client";
+import { tDynamic } from "@/lib/i18n/translate";
 import type { UserProjectLink } from "@/lib/users/project-links";
 
 interface AdminUsersTableProps {
@@ -32,6 +33,7 @@ interface EditFormState {
   role: UserRole;
   status: UserStatus;
   permissions: Permission[];
+  roleOverride: boolean;
 }
 
 function buildEditForm(user: User): EditFormState {
@@ -41,8 +43,9 @@ function buildEditForm(user: User): EditFormState {
     password: "",
     role: user.role,
     status: user.status,
+    roleOverride: Boolean(user.roleOverride),
     permissions:
-      user.role === "user" ? [...user.permissions] : [...DEFAULT_USER_PERMISSIONS],
+      user.role !== "admin" ? [...user.permissions] : defaultPermissionsForRole("user"),
   };
 }
 
@@ -53,6 +56,7 @@ export function AdminUsersTable({
   deletionBlockers,
 }: AdminUsersTableProps) {
   const router = useRouter();
+  const { t, locale } = useI18n();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<EditFormState | null>(null);
   const [loading, setLoading] = useState(false);
@@ -99,11 +103,16 @@ export function AdminUsersTable({
         status: form.status,
       };
 
+      const editedUser = users.find((item) => item.id === editingId);
+      if (editedUser?.entraOid && currentUserIsAdmin) {
+        payload.roleOverride = form.roleOverride;
+      }
+
       if (form.password.trim()) {
         payload.password = form.password;
       }
 
-      if (form.role === "user") {
+      if (form.role !== "admin") {
         payload.permissions = form.permissions;
       }
 
@@ -119,7 +128,7 @@ export function AdminUsersTable({
       };
 
       if (!response.ok) {
-        setError(data.error ?? "Mise à jour impossible.");
+        setError(data.error ?? t("admin.updateFailed"));
         return;
       }
 
@@ -139,15 +148,11 @@ export function AdminUsersTable({
       const details = blockers
         .map((link) => `• ${link.projectName} (${link.role})`)
         .join("\n");
-      window.alert(
-        `Suppression impossible : ${user.name} est rattaché(e) à des projets actifs :\n\n${details}`,
-      );
+      window.alert(t("admin.deleteBlocked", { name: user.name, details }));
       return;
     }
 
-    const confirmed = window.confirm(
-      `Supprimer définitivement l'utilisateur « ${user.name} » ?\n\nCette action est irréversible.`,
-    );
+    const confirmed = window.confirm(t("admin.deleteConfirm", { name: user.name }));
 
     if (!confirmed) return;
 
@@ -170,7 +175,7 @@ export function AdminUsersTable({
       const contentType = response.headers.get("content-type") ?? "";
       const data = contentType.includes("application/json")
         ? ((await response.json()) as { error?: string })
-        : { error: `Réponse inattendue (${response.status}).` };
+        : { error: t("admin.unexpectedResponse", { status: response.status }) };
 
       if (!response.ok && response.status !== 404) {
         setHiddenIds((current) => {
@@ -178,7 +183,7 @@ export function AdminUsersTable({
           next.delete(user.id);
           return next;
         });
-        setError(data.error ?? "Suppression impossible.");
+        setError(data.error ?? t("admin.deleteFailed"));
         return;
       }
 
@@ -199,7 +204,7 @@ export function AdminUsersTable({
   if (rows.length === 0) {
     return (
       <p className="px-6 py-8 text-center text-sm text-brand-muted">
-        Aucun utilisateur enregistré.
+        {t("admin.noUsers")}
       </p>
     );
   }
@@ -216,18 +221,18 @@ export function AdminUsersTable({
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-100 bg-slate-50">
             <tr>
-              <th className="px-6 py-4 font-semibold text-slate-700">Nom</th>
-              <th className="px-6 py-4 font-semibold text-slate-700">E-mail</th>
-              <th className="px-6 py-4 font-semibold text-slate-700">Rôle</th>
-              <th className="px-6 py-4 font-semibold text-slate-700">Statut</th>
+              <th className="px-6 py-4 font-semibold text-slate-700">{t("common.name")}</th>
+              <th className="px-6 py-4 font-semibold text-slate-700">{t("common.email")}</th>
+              <th className="px-6 py-4 font-semibold text-slate-700">{t("common.role")}</th>
+              <th className="px-6 py-4 font-semibold text-slate-700">{t("common.status")}</th>
               <th className="px-6 py-4 font-semibold text-slate-700">
-                Permissions
+                {t("common.permissions")}
               </th>
               <th className="px-6 py-4 font-semibold text-slate-700">
-                Créé le
+                {t("common.createdAt")}
               </th>
               <th className="px-6 py-4 font-semibold text-slate-700">
-                Actions
+                {t("common.actions")}
               </th>
             </tr>
           </thead>
@@ -246,7 +251,20 @@ export function AdminUsersTable({
                       {user.name}
                       {user.id === currentUserId && (
                         <span className="ml-2 text-xs text-brand-muted">
-                          (vous)
+                          ({t("common.you")})
+                        </span>
+                      )}
+                      {user.entraOid && (
+                        <span
+                          className="ml-2 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-sky-700"
+                          title={user.lastLoginAt ? t("entra.lastLogin", { date: formatDate(user.lastLoginAt, locale) }) : undefined}
+                        >
+                          {t("entra.badge")}
+                        </span>
+                      )}
+                      {user.pendingApproval && (
+                        <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                          {t("entra.pendingApproval")}
                         </span>
                       )}
                     </span>
@@ -255,23 +273,23 @@ export function AdminUsersTable({
                 <td className="px-6 py-4 text-brand-muted">{user.email}</td>
                 <td className="px-6 py-4">
                   <Badge variant={user.role === "admin" ? "default" : "muted"}>
-                    {ROLE_LABELS[user.role]}
+                    {tDynamic(t, `enums.role.${user.role}`)}
                   </Badge>
                 </td>
                 <td className="px-6 py-4">
                   <Badge
                     variant={user.status === "active" ? "success" : "warning"}
                   >
-                    {USER_STATUS_LABELS[user.status]}
+                    {tDynamic(t, `enums.userStatus.${user.status}`)}
                   </Badge>
                 </td>
                 <td className="px-6 py-4 text-brand-muted">
                   {user.role === "admin"
-                    ? "Toutes les permissions"
-                    : `${user.permissions.length} permission(s)`}
+                    ? t("admin.allPermissions")
+                    : t("admin.permissionCount", { count: user.permissions.length })}
                 </td>
                 <td className="px-6 py-4 text-brand-muted">
-                  {formatDate(user.createdAt)}
+                  {formatDate(user.createdAt, locale)}
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
@@ -279,7 +297,7 @@ export function AdminUsersTable({
                       type="button"
                       onClick={() => openEdit(user)}
                       className="rounded p-2 text-brand-muted transition hover:bg-slate-100 hover:text-slate-700"
-                      aria-label={`Modifier ${user.name}`}
+                      aria-label={t("admin.editAria", { name: user.name })}
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
@@ -290,13 +308,13 @@ export function AdminUsersTable({
                         deletingId === user.id || user.id === currentUserId
                       }
                       className="rounded p-2 text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                      aria-label={`Supprimer ${user.name}`}
+                      aria-label={t("admin.deleteAria", { name: user.name })}
                       title={
                         user.id === currentUserId
-                          ? "Vous ne pouvez pas supprimer votre propre compte"
+                          ? t("admin.cannotDeleteSelf")
                           : (deletionBlockers[user.id]?.length ?? 0) > 0
-                            ? "Rattaché à des projets actifs"
-                            : "Supprimer"
+                            ? t("admin.linkedToProjects")
+                            : t("common.delete")
                       }
                     >
                       <Trash2 className="h-4 w-4" />
@@ -323,13 +341,13 @@ export function AdminUsersTable({
                   id="edit-user-title"
                   className="text-lg font-semibold text-slate-900"
                 >
-                  Modifier l&apos;utilisateur
+                  {t("admin.editUser")}
                 </h3>
                 <button
                   type="button"
                   onClick={closeEdit}
                   className="rounded p-1 text-brand-muted hover:bg-slate-100 hover:text-slate-700"
-                  aria-label="Fermer"
+                  aria-label={t("common.close")}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -343,7 +361,7 @@ export function AdminUsersTable({
 
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <label className="block text-sm">
-                  <span className="font-medium text-slate-700">Nom complet</span>
+                  <span className="font-medium text-slate-700">{t("common.fullName")}</span>
                   <input
                     type="text"
                     required
@@ -358,7 +376,7 @@ export function AdminUsersTable({
                 </label>
 
                 <label className="block text-sm">
-                  <span className="font-medium text-slate-700">E-mail</span>
+                  <span className="font-medium text-slate-700">{t("common.email")}</span>
                   <input
                     type="email"
                     required
@@ -374,7 +392,7 @@ export function AdminUsersTable({
 
                 <label className="block text-sm">
                   <span className="font-medium text-slate-700">
-                    Nouveau mot de passe
+                    {t("profile.newPassword")}
                   </span>
                   <input
                     type="password"
@@ -388,12 +406,12 @@ export function AdminUsersTable({
                       )
                     }
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-slate-900 focus:border-brand-indigo focus:outline-none focus:ring-1 focus:ring-brand-indigo"
-                    placeholder="Laisser vide pour conserver"
+                    placeholder={t("admin.keepPasswordPlaceholder")}
                   />
                 </label>
 
                 <label className="block text-sm">
-                  <span className="font-medium text-slate-700">Rôle</span>
+                  <span className="font-medium text-slate-700">{t("common.role")}</span>
                   <select
                     value={form.role}
                     onChange={(e) =>
@@ -402,6 +420,10 @@ export function AdminUsersTable({
                           ? {
                               ...current,
                               role: e.target.value as UserRole,
+                              permissions: defaultPermissionsForRole(
+                                e.target.value as UserRole,
+                              ),
+                              roleOverride: true,
                             }
                           : current,
                       )
@@ -411,18 +433,21 @@ export function AdminUsersTable({
                     }
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-slate-900 focus:border-brand-indigo focus:outline-none focus:ring-1 focus:ring-brand-indigo disabled:bg-slate-50"
                   >
-                    <option value="user">{ROLE_LABELS.user}</option>
-                    <option value="admin">{ROLE_LABELS.admin}</option>
+                    {USER_ROLES.map((role) => (
+                      <option key={role} value={role}>
+                        {tDynamic(t, `enums.role.${role}`)}
+                      </option>
+                    ))}
                   </select>
                   {!currentUserIsAdmin && (
                     <p className="mt-1 text-xs text-brand-muted">
-                      Seul un administrateur peut modifier le rôle.
+                      {t("admin.onlyAdminRole")}
                     </p>
                   )}
                 </label>
 
                 <label className="block text-sm sm:col-span-2">
-                  <span className="font-medium text-slate-700">Statut</span>
+                  <span className="font-medium text-slate-700">{t("common.status")}</span>
                   <select
                     value={form.status}
                     onChange={(e) =>
@@ -438,22 +463,42 @@ export function AdminUsersTable({
                     disabled={editingId === currentUserId}
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-slate-900 focus:border-brand-indigo focus:outline-none focus:ring-1 focus:ring-brand-indigo disabled:bg-slate-50"
                   >
-                    <option value="active">{USER_STATUS_LABELS.active}</option>
+                    <option value="active">{t("enums.userStatus.active")}</option>
                     <option value="suspended">
-                      {USER_STATUS_LABELS.suspended}
+                      {t("enums.userStatus.suspended")}
                     </option>
                   </select>
                   <p className="mt-1 text-xs text-brand-muted">
-                    Un compte suspendu ne peut plus se connecter mais reste
-                    visible dans l&apos;historique des projets.
+                    {t("admin.suspendedHelp")}
                   </p>
                 </label>
               </div>
 
-              {form.role === "user" && (
+              {currentUserIsAdmin && users.find((item) => item.id === editingId)?.entraOid && (
+                <label className="mt-4 flex items-start gap-3 rounded-lg border border-sky-100 bg-sky-50/60 px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={form.roleOverride}
+                    onChange={(e) =>
+                      setForm((current) =>
+                        current ? { ...current, roleOverride: e.target.checked } : current,
+                      )
+                    }
+                  />
+                  <span>
+                    <span className="font-medium text-slate-800">{t("entra.roleOverride")}</span>
+                    <span className="mt-0.5 block text-xs text-brand-muted">
+                      {t("entra.roleOverrideHelp")}
+                    </span>
+                  </span>
+                </label>
+              )}
+
+              {form.role !== "admin" && (
                 <div className="mt-4">
                   <p className="text-sm font-medium text-slate-700">
-                    Permissions
+                    {t("common.permissions")}
                   </p>
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     {ALL_PERMISSIONS.map((permission) => (
@@ -475,7 +520,7 @@ export function AdminUsersTable({
 
               {(deletionBlockers[editingId]?.length ?? 0) > 0 && (
                 <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  Rattaché à des projets actifs :{" "}
+                  {t("admin.linkedProjects")}{" "}
                   {deletionBlockers[editingId]
                     ?.map((link) => `${link.projectName} (${link.role})`)
                     .join(", ")}
@@ -488,14 +533,14 @@ export function AdminUsersTable({
                   disabled={loading}
                   className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
                 >
-                  {loading ? "Enregistrement…" : "Enregistrer"}
+                  {loading ? t("common.saving") : t("common.save")}
                 </button>
                 <button
                   type="button"
                   onClick={closeEdit}
                   className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
-                  Annuler
+                  {t("common.cancel")}
                 </button>
               </div>
             </form>

@@ -15,22 +15,25 @@ import {
   Shield,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { cn } from "@/lib/utils";
 import { hasPermission, type SessionUser } from "@/lib/auth/permissions";
+import { useI18n } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/translate";
 
-const navigation = [
-  { name: "Tableau de bord", href: "/", icon: LayoutDashboard },
-  { name: "Portfolios", href: "/portfolios", icon: Briefcase },
-  { name: "Projets", href: "/projets", icon: FolderKanban },
-  { name: "Tâches", href: "/taches", icon: CheckSquare },
-  { name: "Équipe", href: "/equipe", icon: Users },
-  { name: "Documents", href: "/documents", icon: FileText },
-  { name: "Rapports", href: "/rapports", icon: BarChart3 },
+const navigation: { key: MessageKey; href: string; icon: typeof LayoutDashboard }[] = [
+  { key: "nav.dashboard", href: "/", icon: LayoutDashboard },
+  { key: "nav.portfolios", href: "/portfolios", icon: Briefcase },
+  { key: "nav.projects", href: "/projets", icon: FolderKanban },
+  { key: "nav.tasks", href: "/taches", icon: CheckSquare },
+  { key: "nav.team", href: "/equipe", icon: Users },
+  { key: "nav.documents", href: "/documents", icon: FileText },
+  { key: "nav.reports", href: "/rapports", icon: BarChart3 },
 ];
 
-const secondaryNav = [
-  { name: "Paramètres", href: "/parametres", icon: Settings },
-  { name: "Aide HERMES5", href: "/aide", icon: HelpCircle },
+const secondaryNav: { key: MessageKey; href: string; icon: typeof Settings }[] = [
+  { key: "nav.settings", href: "/parametres", icon: Settings },
+  { key: "nav.help", href: "/aide", icon: HelpCircle },
 ];
 
 interface SidebarProps {
@@ -43,6 +46,7 @@ export function Sidebar({
   showAdministration = false,
 }: SidebarProps) {
   const pathname = usePathname();
+  const { t } = useI18n();
   const showAdmin =
     user &&
     (hasPermission(user, "admin:access") || showAdministration);
@@ -57,7 +61,7 @@ export function Sidebar({
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Navigation
+          {t("nav.navigation")}
         </p>
         {navigation.map((item) => {
           const isActive =
@@ -77,7 +81,7 @@ export function Sidebar({
               )}
             >
               <item.icon className="h-5 w-5 shrink-0" />
-              {item.name}
+              {t(item.key)}
             </Link>
           );
         })}
@@ -85,7 +89,7 @@ export function Sidebar({
         <div className="my-4 border-t border-white/10" />
 
         <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Système
+          {t("nav.system")}
         </p>
         {secondaryNav.map((item) => {
           const isActive = pathname.startsWith(item.href);
@@ -102,7 +106,7 @@ export function Sidebar({
               )}
             >
               <item.icon className="h-5 w-5 shrink-0" />
-              {item.name}
+              {t(item.key)}
             </Link>
           );
         })}
@@ -118,17 +122,16 @@ export function Sidebar({
             )}
           >
             <Shield className="h-5 w-5 shrink-0" />
-            Administration
+            {t("nav.administration")}
           </Link>
         )}
       </nav>
 
-      <div className="border-t border-white/10 p-4">
+      <div className="space-y-3 border-t border-white/10 p-4">
+        <LanguageSwitcher variant="sidebar" />
         <div className="rounded-lg bg-white/5 p-3">
-          <p className="text-xs font-medium text-brand-cyan">Méthode HERMES5</p>
-          <p className="mt-1 text-xs text-slate-400">
-            Gestion de projet conforme à la norme eCH-0054
-          </p>
+          <p className="text-xs font-medium text-brand-cyan">{t("nav.hermesTitle")}</p>
+          <p className="mt-1 text-xs text-slate-400">{t("nav.hermesSubtitle")}</p>
         </div>
       </div>
     </aside>

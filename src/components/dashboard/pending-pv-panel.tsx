@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useI18n } from "@/lib/i18n/client";
 import { FileWarning } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import type { PendingPvDocumentItem } from "@/types";
@@ -8,6 +11,7 @@ interface PendingPvPanelProps {
 }
 
 export function PendingPvPanel({ items }: PendingPvPanelProps) {
+  const { t, locale } = useI18n();
   if (items.length === 0) {
     return null;
   }
@@ -17,12 +21,11 @@ export function PendingPvPanel({ items }: PendingPvPanelProps) {
       <div className="mb-4 flex items-center gap-2">
         <FileWarning className="h-5 w-5 text-amber-700" />
         <h2 className="text-lg font-semibold text-amber-950">
-          Documents à archiver ({items.length})
+          {t("dashboard.pvTitle", { count: items.length })}
         </h2>
       </div>
       <p className="mb-4 text-sm text-amber-900">
-        Des documents mandant sont en attente d&apos;archivage dans le dossier
-        projet (accord budget ou PV de séance).
+        {t("dashboard.pvDescription")}
       </p>
       <ul className="space-y-2">
         {items.map((item) => (
@@ -33,7 +36,7 @@ export function PendingPvPanel({ items }: PendingPvPanelProps) {
             >
               <span className="font-medium text-slate-900">{item.title}</span>
               <span className="text-brand-muted">
-                {item.projectName} · séance {formatDate(item.sessionDate)}
+                {t("dashboard.pvSession", { project: item.projectName, date: formatDate(item.sessionDate, locale) })}
               </span>
             </Link>
           </li>

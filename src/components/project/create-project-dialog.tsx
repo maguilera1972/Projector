@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  HERMES_APPROACH_DESCRIPTIONS,
-  HERMES_APPROACH_LABELS,
-} from "@/lib/hermes/phases";
 import type { HermesApproach, Portfolio } from "@/types";
+import { useI18n } from "@/lib/i18n/client";
+import { LOCALES, LOCALE_NATIVE_NAMES, type Locale } from "@/lib/i18n/config";
+import { tDynamic } from "@/lib/i18n/translate";
 import type { AssigneeOption } from "@/lib/users";
 
 interface HermesScenarioOption {
@@ -32,6 +31,7 @@ export function CreateProjectDialog({
   defaultPortfolioId = "",
 }: CreateProjectDialogProps) {
   const router = useRouter();
+  const { t, locale } = useI18n();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
@@ -50,6 +50,7 @@ export function CreateProjectDialog({
     endDate: "",
     budget: "",
     budgetHours: "",
+    documentLocale: locale as Locale,
   });
 
   useEffect(() => {
@@ -123,6 +124,7 @@ export function CreateProjectDialog({
           endDate: form.endDate || undefined,
           budget: form.budget ? Number(form.budget) : undefined,
           budgetHours: form.budgetHours ? Number(form.budgetHours) : undefined,
+          documentLocale: form.documentLocale,
         }),
       });
 
@@ -132,7 +134,7 @@ export function CreateProjectDialog({
       };
 
       if (!response.ok) {
-        setError(data.error ?? "Création impossible.");
+        setError(data.error ?? t("projectForm.failed"));
         return;
       }
 
@@ -140,7 +142,7 @@ export function CreateProjectDialog({
       router.push(`/projets/${data.project!.id}`);
       router.refresh();
     } catch {
-      setError("Erreur réseau. Veuillez réessayer.");
+      setError(t("common.networkError"));
     } finally {
       setLoading(false);
     }
@@ -152,16 +154,16 @@ export function CreateProjectDialog({
         type="button"
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
-        aria-label="Fermer"
+        aria-label={t("common.close")}
       />
       <div className="relative z-10 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">
-              Nouveau projet
+              {t("projectForm.title")}
             </h2>
             <p className="text-sm text-brand-muted">
-              Conforme à la méthode HERMES 5.1
+              {t("projectForm.subtitle")}
             </p>
           </div>
           <button
@@ -182,7 +184,7 @@ export function CreateProjectDialog({
 
           <div>
             <label htmlFor="name" className="mb-1.5 block text-sm font-medium">
-              Nom du projet *
+              {t("projectForm.name")}
             </label>
             <input
               id="name"
@@ -190,7 +192,7 @@ export function CreateProjectDialog({
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/20"
-              placeholder="Ex. Migration infrastructure SI"
+              placeholder={t("projectForm.namePlaceholder")}
             />
           </div>
 
@@ -199,7 +201,7 @@ export function CreateProjectDialog({
               htmlFor="description"
               className="mb-1.5 block text-sm font-medium"
             >
-              Description
+              {t("projectForm.description")}
             </label>
             <textarea
               id="description"
@@ -209,7 +211,7 @@ export function CreateProjectDialog({
                 setForm({ ...form, description: e.target.value })
               }
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/20"
-              placeholder="Objectif et contexte du projet..."
+              placeholder={t("projectForm.descriptionPlaceholder")}
             />
           </div>
 
@@ -219,7 +221,7 @@ export function CreateProjectDialog({
                 htmlFor="scenarioId"
                 className="mb-1.5 block text-sm font-medium"
               >
-                Scénario HERMES 5.1 *
+                {t("projectForm.scenario")}
               </label>
               <select
                 id="scenarioId"
@@ -253,7 +255,7 @@ export function CreateProjectDialog({
                 htmlFor="portfolioId"
                 className="mb-1.5 block text-sm font-medium"
               >
-                Portfolio
+                {t("projectForm.portfolio")}
               </label>
               <select
                 id="portfolioId"
@@ -263,7 +265,7 @@ export function CreateProjectDialog({
                 }
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/20"
               >
-                <option value="">— Aucun portfolio —</option>
+                <option value="">{t("projectForm.noPortfolio")}</option>
                 {portfolios.map((portfolio) => (
                   <option key={portfolio.id} value={portfolio.id}>
                     {portfolio.name}
@@ -274,7 +276,7 @@ export function CreateProjectDialog({
           )}
 
           <div>
-            <p className="mb-2 text-sm font-medium">Approche HERMES 5.1 *</p>
+            <p className="mb-2 text-sm font-medium">{t("projectForm.approach")}</p>
             <div className="grid gap-3 sm:grid-cols-2">
               {(["classic", "agile"] as HermesApproach[]).map((approach) => (
                 <button
@@ -289,14 +291,38 @@ export function CreateProjectDialog({
                   )}
                 >
                   <p className="text-sm font-semibold text-slate-900">
-                    {HERMES_APPROACH_LABELS[approach]}
+                    {tDynamic(t, `enums.approach.${approach}`)}
                   </p>
                   <p className="mt-1 text-xs text-brand-muted">
-                    {HERMES_APPROACH_DESCRIPTIONS[approach]}
+                    {tDynamic(t, `enums.approachDescription.${approach}`)}
                   </p>
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="documentLocale"
+              className="mb-1.5 block text-sm font-medium"
+            >
+              {t("projects.language")}
+            </label>
+            <select
+              id="documentLocale"
+              value={form.documentLocale}
+              onChange={(e) =>
+                setForm({ ...form, documentLocale: e.target.value as Locale })
+              }
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/20"
+            >
+              {LOCALES.map((code) => (
+                <option key={code} value={code}>
+                  {LOCALE_NATIVE_NAMES[code]}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-brand-muted">{t("projects.languageHelp")}</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -305,7 +331,7 @@ export function CreateProjectDialog({
                 htmlFor="mandantUserId"
                 className="mb-1.5 block text-sm font-medium"
               >
-                Mandant (utilisateur) *
+                {t("projectForm.mandant")}
               </label>
               <select
                 id="mandantUserId"
@@ -317,7 +343,7 @@ export function CreateProjectDialog({
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/20"
               >
                 <option value="" disabled>
-                  Sélectionner le mandant
+                  {t("projectForm.selectMandant")}
                 </option>
                 {stakeholders.map((stakeholder) => (
                   <option key={stakeholder.id} value={stakeholder.id}>
@@ -326,7 +352,7 @@ export function CreateProjectDialog({
                 ))}
               </select>
               <p className="mt-1 text-xs text-brand-muted">
-                Cet utilisateur pourra valider le budget et confirmer les phases.
+                {t("projectForm.mandantHelp")}
               </p>
             </div>
             <div>
@@ -334,7 +360,7 @@ export function CreateProjectDialog({
                 htmlFor="chefDeProjetId"
                 className="mb-1.5 block text-sm font-medium"
               >
-                Chef de projet *
+                {t("projectForm.chef")}
               </label>
               <select
                 id="chefDeProjetId"
@@ -346,7 +372,7 @@ export function CreateProjectDialog({
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/20"
               >
                 <option value="" disabled>
-                  Sélectionner un utilisateur
+                  {t("projectForm.selectUser")}
                 </option>
                 {stakeholders.map((stakeholder) => (
                   <option key={stakeholder.id} value={stakeholder.id}>
@@ -355,7 +381,7 @@ export function CreateProjectDialog({
                 ))}
               </select>
               <p className="mt-1 text-xs text-brand-muted">
-                Seul le chef de projet pourra assigner les tâches du projet.
+                {t("projectForm.chefHelp")}
               </p>
             </div>
           </div>
@@ -366,7 +392,7 @@ export function CreateProjectDialog({
                 htmlFor="startDate"
                 className="mb-1.5 block text-sm font-medium"
               >
-                Date de début *
+                {t("projectForm.startDate")}
               </label>
               <input
                 id="startDate"
@@ -384,7 +410,7 @@ export function CreateProjectDialog({
                 htmlFor="endDate"
                 className="mb-1.5 block text-sm font-medium"
               >
-                Date de fin prévue
+                {t("projectForm.endDate")}
               </label>
               <input
                 id="endDate"
@@ -399,7 +425,7 @@ export function CreateProjectDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="budget" className="mb-1.5 block text-sm font-medium">
-                Budget estimé (CHF)
+                {t("projectForm.budget")}
               </label>
               <input
                 id="budget"
@@ -409,7 +435,7 @@ export function CreateProjectDialog({
                 value={form.budget}
                 onChange={(e) => setForm({ ...form, budget: e.target.value })}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/20"
-                placeholder="Validation mandant requise"
+                placeholder={t("projectForm.budgetPlaceholder")}
               />
             </div>
             <div>
@@ -417,7 +443,7 @@ export function CreateProjectDialog({
                 htmlFor="budgetHours"
                 className="mb-1.5 block text-sm font-medium"
               >
-                Carnet d&apos;heures forfaitaires
+                {t("projectForm.hours")}
               </label>
               <input
                 id="budgetHours"
@@ -429,7 +455,7 @@ export function CreateProjectDialog({
                   setForm({ ...form, budgetHours: e.target.value })
                 }
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/20"
-                placeholder="Heures forfait"
+                placeholder={t("projectForm.hoursPlaceholder")}
               />
             </div>
           </div>
@@ -440,7 +466,7 @@ export function CreateProjectDialog({
               onClick={onClose}
               className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              Annuler
+              {t("common.cancel")}
             </button>
             <button
               type="submit"
@@ -448,7 +474,7 @@ export function CreateProjectDialog({
               className="gradient-brand inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               <Plus className="h-4 w-4" />
-              {loading ? "Création..." : "Créer le projet"}
+              {loading ? t("projectForm.submitting") : t("projectForm.submit")}
             </button>
           </div>
         </form>

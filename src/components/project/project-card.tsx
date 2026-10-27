@@ -1,17 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { formatDate } from "@/lib/utils";
-import {
-  getPhaseLabel,
-  HERMES_APPROACH_LABELS,
-} from "@/lib/hermes/phases";
-import {
-  PROJECT_STATUS_LABELS,
-  type Project,
-  type ProjectStatus,
-} from "@/types";
+import { useI18n } from "@/lib/i18n/client";
+import { toIntlLocale } from "@/lib/i18n/config";
+import { tDynamic } from "@/lib/i18n/translate";
+import type { Project, ProjectStatus } from "@/types";
 
 const statusVariant: Record<
   ProjectStatus,
@@ -28,7 +25,8 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project }: ProjectCardProps) {
-  const phaseLabel = getPhaseLabel(project.currentPhase, project.approach);
+  const { t, locale } = useI18n();
+  const phaseLabel = tDynamic(t, `enums.phase.${project.currentPhase}`);
 
   return (
     <Link
@@ -42,11 +40,14 @@ export function ProjectCard({ project }: ProjectCardProps) {
               {project.name}
             </h3>
             <Badge variant={statusVariant[project.status]}>
-              {PROJECT_STATUS_LABELS[project.status]}
+              {tDynamic(t, `enums.projectStatus.${project.status}`)}
             </Badge>
             <Badge variant="muted">
-              {HERMES_APPROACH_LABELS[project.approach]}
+              {tDynamic(t, `enums.approach.${project.approach}`)}
             </Badge>
+            {project.documentLocale && project.documentLocale !== locale && (
+              <Badge variant="muted">{project.documentLocale.toUpperCase()}</Badge>
+            )}
           </div>
           <p className="mt-2 line-clamp-2 text-sm text-brand-muted">
             {project.description || "—"}
@@ -57,17 +58,17 @@ export function ProjectCard({ project }: ProjectCardProps) {
 
       <div className="mt-4 flex flex-wrap gap-4 text-xs text-brand-muted">
         <span>
-          Phase : <strong className="text-slate-700">{phaseLabel}</strong>
+          {t("projects.phase")} : <strong className="text-slate-700">{phaseLabel}</strong>
         </span>
         <span>
-          Chef de projet :{" "}
+          {t("projects.chef")} :{" "}
           <strong className="text-slate-700">{project.chefDeProjet}</strong>
         </span>
         {project.endDate && (
           <span>
-            Échéance :{" "}
+            {t("projects.due")} :{" "}
             <strong className="text-slate-700">
-              {formatDate(project.endDate)}
+              {formatDate(project.endDate, locale)}
             </strong>
           </span>
         )}
@@ -79,10 +80,15 @@ export function ProjectCard({ project }: ProjectCardProps) {
 
       <div className="mt-3 flex justify-between text-xs text-brand-muted">
         <span>
-          {project.tasksCompleted} / {project.tasksTotal} tâches
+          {t("projects.tasksCount", {
+            done: project.tasksCompleted,
+            total: project.tasksTotal,
+          })}
         </span>
         {project.budget && (
-          <span>Budget : {project.budget.toLocaleString("fr-CH")} CHF</span>
+          <span>
+            {t("projects.budget")} : {project.budget.toLocaleString(toIntlLocale(locale))} CHF
+          </span>
         )}
       </div>
     </Link>

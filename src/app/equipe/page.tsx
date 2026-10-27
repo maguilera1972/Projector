@@ -9,8 +9,10 @@ import {
 } from "@/lib/db/store";
 import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
+import { getRequestTranslator } from "@/lib/i18n/server";
 
 export default async function EquipePage() {
+  const { t } = await getRequestTranslator();
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
@@ -30,8 +32,8 @@ export default async function EquipePage() {
   return (
     <>
       <Header
-        title="Équipe"
-        subtitle="Ressources, groupes de compétences et matrice HERMES5"
+        title={t("pages.teamTitle")}
+        subtitle={t("pages.teamSubtitle")}
         user={user}
       />
       <main className="p-8">

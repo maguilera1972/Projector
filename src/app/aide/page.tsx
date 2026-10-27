@@ -3,16 +3,18 @@ import { redirect } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { getSessionUser } from "@/lib/auth/session";
 import { HERMES_REFERENCE_PHASES } from "@/lib/hermes/phases";
+import { getRequestTranslator } from "@/lib/i18n/server";
 
 export default async function AidePage() {
+  const { t } = await getRequestTranslator();
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
   return (
     <>
       <Header
-        title="Aide HERMES5"
-        subtitle="Référence méthodologique eCH-0054"
+        title={t("pages.helpTitle")}
+        subtitle={t("pages.helpSubtitle")}
         user={user}
       />
       <main className="p-8">

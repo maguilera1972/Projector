@@ -3,7 +3,14 @@ import type { NextRequest } from "next/server";
 import { isSessionTokenValid } from "@/lib/auth/token";
 
 const COOKIE_NAME = "projector-session";
-const PUBLIC_PATHS = ["/login", "/api/auth/login"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/auth/login",
+  "/api/auth/entra/",
+  "/invitation/",
+  "/api/invitations/accept",
+  "/api/i18n/locale",
+];
 
 async function isAuthenticated(request: NextRequest): Promise<boolean> {
   const token = request.cookies.get(COOKIE_NAME)?.value;

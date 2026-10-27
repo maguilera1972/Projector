@@ -6,10 +6,12 @@ import { listProjects, listPortfolios } from "@/lib/db/store";
 import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { canUserManageProjectMandant } from "@/lib/hermes/project-roles";
+import { getRequestTranslator } from "@/lib/i18n/server";
 
 export default async function ParametresPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  const { t } = await getRequestTranslator();
 
   const isAdmin = hasPermission(user, "admin:access");
   const projects = await listProjects();
@@ -26,24 +28,24 @@ export default async function ParametresPage() {
 
   const settingsLinks = [
     {
-      title: "Mon profil",
-      description: "Nom, e-mail, mot de passe et avatar (Gravatar ou initiales)",
+      title: t("settings.profileTitle"),
+      description: t("settings.profileDescription"),
       href: "/parametres/profil",
       icon: UserCircle,
       visible: true,
     },
     {
-      title: "Administration",
+      title: t("settings.adminTitle"),
       description: isAdmin
-        ? "Utilisateurs, mandants de projet et permissions"
-        : "Assigner l'utilisateur mandant pour vos projets",
+        ? t("settings.adminDescriptionAdmin")
+        : t("settings.adminDescriptionMandant"),
       href: "/parametres/administration",
       icon: Shield,
       visible: isAdmin || canManageMandant,
     },
     {
-      title: "Utilisateurs",
-      description: "Consulter l'équipe et les rôles HERMES5",
+      title: t("settings.usersTitle"),
+      description: t("settings.usersDescription"),
       href: "/equipe",
       icon: Users,
       visible: true,
@@ -53,8 +55,8 @@ export default async function ParametresPage() {
   return (
     <>
       <Header
-        title="Paramètres"
-        subtitle="Configuration de la plateforme PROJECTOR"
+        title={t("settings.title")}
+        subtitle={t("settings.subtitle")}
         user={user}
       />
 

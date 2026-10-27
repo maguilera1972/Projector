@@ -81,7 +81,8 @@ export interface Project {
   documentLocale?: DocumentLocale;
 }
 
-export type DocumentLocale = "fr" | "en";
+/** Langue d'un projet : libellés HERMES et documents générés. */
+export type DocumentLocale = import("@/lib/i18n/config").Locale;
 
 export interface GeneratedDocument {
   id: string;
@@ -331,6 +332,7 @@ export interface CreateProjectInput {
   endDate?: string;
   budget?: number;
   budgetHours?: number;
+  documentLocale?: DocumentLocale;
 }
 
 export type QualityGateCheckStatus = "ok" | "pending" | "blocked";
@@ -427,19 +429,77 @@ export type NotificationKind =
   | "budget_revision_requested"
   | "budget_revision_approved"
   | "budget_approval_required"
-  | "document_pv_pending";
+  | "document_pv_pending"
+  | "invitation_accepted";
+
+/** Paramètres d'une notification, traduits à l'affichage dans la langue du destinataire. */
+export type NotificationParams = Record<string, string | number>;
 
 export interface Notification {
   id: string;
   userId: string;
   kind: NotificationKind;
+  /** Texte figé (français) pour les anciennes notifications sans paramètres. */
   title: string;
   message: string;
+  params?: NotificationParams;
   href?: string;
   projectId?: string;
   readAt?: string;
   createdAt: string;
 }
+
+export type EntraMappingType = "appRole" | "group";
+
+/** Correspondance App Role / groupe Entra → rôle PROJECTOR. */
+export interface EntraRoleMapping {
+  id: string;
+  type: EntraMappingType;
+  /** Valeur du rôle d'application (claim `roles`) ou ID d'objet du groupe (claim `groups`). */
+  value: string;
+  role: import("@/lib/auth/permissions").UserRole;
+  label?: string;
+  createdAt: string;
+}
+
+/** Politique pour un utilisateur Entra inconnu (ni lié, ni invité, ni couvert par une correspondance). */
+export type EntraUnknownUserPolicy = "deny" | "pending";
+
+export interface EntraSettings {
+  unknownUserPolicy: EntraUnknownUserPolicy;
+  mappings: EntraRoleMapping[];
+}
+
+export type InvitationEmailStatus = "sent" | "failed" | "not_configured";
+
+export type InvitationStatus = "pending" | "accepted" | "expired" | "revoked";
+
+export interface Invitation {
+  id: string;
+  email: string;
+  name?: string;
+  role: import("@/lib/auth/permissions").UserRole;
+  permissions: import("@/lib/auth/permissions").Permission[];
+  locale: import("@/lib/i18n/config").Locale;
+  message?: string;
+  /** Empreinte SHA-256 du jeton ; le jeton brut n'est jamais stocké. */
+  tokenHash: string;
+  invitedBy: string;
+  invitedByName: string;
+  createdAt: string;
+  expiresAt: string;
+  acceptedAt?: string;
+  acceptedUserId?: string;
+  revokedAt?: string;
+  emailStatus?: InvitationEmailStatus;
+  emailError?: string;
+  lastSentAt?: string;
+}
+
+/** Invitation exposée à l'interface (sans empreinte du jeton). */
+export type InvitationSummary = Omit<Invitation, "tokenHash"> & {
+  status: InvitationStatus;
+};
 
 export interface QualityGateContext {
   projectId: string;

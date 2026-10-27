@@ -14,11 +14,28 @@ Les nouvelles entrées s'ajoutent **en haut**, juste sous ce paragraphe.
 - Dépôt principal migré vers GitLab : `https://gitlab.aguilera.ch/Aguilera_Lab/Projector` (remote `origin`). Gitea reste disponible comme remote secondaire `gitea` (miroir facultatif).
 - Règle Cursor `publish-gitlab.mdc` : après toute modification demandée, mise à jour du changelog, commit et push vers GitLab par défaut (sauf « sans publier », « ne pousse pas », « local only »).
 - README et unité systemd (`Documentation=`) pointent vers GitLab.
+- Session : l'utilisateur est relu en base à chaque requête — un changement de rôle, de permissions ou une suspension s'applique immédiatement, sans reconnexion.
+- Notifications stockées avec des paramètres et traduites à l'affichage dans la langue du destinataire (les anciennes restent en français).
+- Documents HERMES générés et Word : libellés (scénario, phase, approche, statuts, titres) dans la langue du projet ; corps de modèles en anglais pour l'italien, l'espagnol et l'allemand.
 
 ### Ajouté
 
+- Console multilingue : français (par défaut), anglais, italien, espagnol et allemand (`src/lib/i18n/`) — navigation, en-tête, connexion, tableau de bord, projets, fiche projet, tâches, profil, paramètres, administration, notifications, e-mails.
+- Sélecteur de langue dans le menu latéral (et sur les pages de connexion / invitation) : bascule immédiate, choix mémorisé (cookie + préférence du profil).
+- Langue par projet (création et fiche projet) : tâches, modules, scénarios, quality gates et titres de documents HERMES traduits (`reference-data/hermes/i18n.json`).
+- Invitations de personnes internes ou externes avec rôle, permissions, langue et message personnel ; page publique `/invitation/<jeton>` pour créer le compte ; renvoi, révocation, lien copiable si l'e-mail ne part pas.
+- Nouveau rôle « Invité externe » (lecture seule par défaut).
+- Envoi d'e-mails via Microsoft Graph (`Mail.Send`) : invitations, notifications (désactivables dans le profil) et e-mail de test depuis l'administration.
+- Connexion « Se connecter avec Microsoft » (Entra ID, OIDC code + PKCE, validation du jeton par JWKS, iss, aud, nonce, expiration) ; la connexion locale reste disponible.
+- Liaison des comptes Entra (oid, puis e-mail/UPN, puis invitation en attente) et attribution des rôles : rôle fixé par un admin > correspondance App Role / groupe Entra > rôle d'invitation > politique pour les inconnus (refus ou compte en attente d'approbation).
+- Administration : panneau Entra (URI de redirection, politique, table des correspondances), badge « Entra » et option « rôle fixé manuellement », journal d'audit des connexions Entra et changements de rôle.
 - Script `scripts/publish-to-gitlab.sh` (jeton `GITLAB_TOKEN` ou `~/.config/gitlab/personal_access_token`, option `--dry-run`, staging ciblé via `-- chemins`, exclusions des secrets et données runtime).
 - Ce fichier `CHANGELOG.md`.
+
+### Sécurité
+
+- Identifiants Entra / Graph uniquement dans `.env.local` (non versionné) ; `.env.example` ne contient que des valeurs fictives.
+- Jetons d'invitation stockés sous forme d'empreinte SHA-256, à usage unique, valables 7 jours (`PROJECTOR_INVITATION_TTL_DAYS`).
 
 ## 2026-07-20
 

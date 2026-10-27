@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { TaskEditDialog } from "@/components/task/task-edit-dialog";
 import { formatDate } from "@/lib/utils";
 import type { UserOverdueItem } from "@/lib/data/dashboard";
-import { TASK_STATUS_LABELS } from "@/types";
+import { useI18n } from "@/lib/i18n/client";
+import { tDynamic } from "@/lib/i18n/translate";
 
 interface OverdueTasksPanelProps {
   items: UserOverdueItem[];
@@ -15,15 +16,16 @@ interface OverdueTasksPanelProps {
 
 export function OverdueTasksPanel({ items }: OverdueTasksPanelProps) {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const { t, locale } = useI18n();
 
   if (items.length === 0) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">
-          Mes tâches en retard
+          {t("dashboard.overdueTitle")}
         </h2>
         <p className="mt-2 text-sm text-brand-muted">
-          Aucune tâche ou activité assignée en retard. Bon travail !
+          {t("dashboard.overdueNone")}
         </p>
       </div>
     );
@@ -35,7 +37,7 @@ export function OverdueTasksPanel({ items }: OverdueTasksPanelProps) {
         <div className="flex items-center gap-2 border-b border-amber-200/80 px-6 py-4">
           <AlertTriangle className="h-5 w-5 text-amber-600" />
           <h2 className="text-lg font-semibold text-slate-900">
-            Mes tâches en retard ({items.length})
+            {t("dashboard.overdueTitleCount", { count: items.length })}
           </h2>
         </div>
         <ul className="divide-y divide-amber-100">
@@ -53,12 +55,12 @@ export function OverdueTasksPanel({ items }: OverdueTasksPanelProps) {
                     </p>
                     {item.kind === "activity" && item.parentTaskTitle && (
                       <p className="mt-0.5 text-xs text-brand-muted">
-                        Activité · {item.parentTaskTitle}
+                        {t("dashboard.activity", { task: item.parentTaskTitle })}
                       </p>
                     )}
                   </div>
                   <Badge variant="warning">
-                    {item.daysOverdue} j. de retard
+                    {t("dashboard.daysLate", { count: item.daysOverdue })}
                   </Badge>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-brand-muted">
@@ -69,8 +71,8 @@ export function OverdueTasksPanel({ items }: OverdueTasksPanelProps) {
                   >
                     {item.projectName}
                   </Link>
-                  <span>Échéance {formatDate(item.dueDate)}</span>
-                  <span>{TASK_STATUS_LABELS[item.status]}</span>
+                  <span>{t("dashboard.dueOn", { date: formatDate(item.dueDate, locale) })}</span>
+                  <span>{tDynamic(t, `enums.taskStatus.${item.status}`)}</span>
                 </div>
               </button>
             </li>

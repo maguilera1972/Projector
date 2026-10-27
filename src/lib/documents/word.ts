@@ -2,8 +2,8 @@ import { spawn } from "node:child_process";
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import registryData from "../../../reference-data/hermes/template-registry.json";
-import { getScenarioById } from "@/lib/hermes/referential";
-import { getPhaseLabel, HERMES_APPROACH_LABELS } from "@/lib/hermes/phases";
+import { localizeScenario } from "@/lib/hermes/i18n";
+import { getTranslator, tDynamic } from "@/lib/i18n/translate";
 import { isWordTemplateAvailable } from "@/lib/documents/hermes-templates";
 import {
   buildDocumentMarkdown,
@@ -56,18 +56,14 @@ function buildTasksList(
   phase: HermesPhaseId,
   locale: DocumentLocale,
 ): string {
+  const t = getTranslator(locale);
   const phaseTasks = tasks.filter((task) => task.phase === phase);
   if (phaseTasks.length === 0) {
-    return locale === "en" ? "(no tasks)" : "(aucune tâche)";
+    return `(${t("docs.noTasks")})`;
   }
   return phaseTasks
     .map((task) => {
-      const status =
-        task.status === "termine"
-          ? locale === "en"
-            ? "done"
-            : "terminé"
-          : task.status;
+      const status = tDynamic(t, `enums.taskStatus.${task.status}`);
       return `- ${task.title} (${task.progress ?? 0} % — ${status})`;
     })
     .join("\n");
@@ -265,9 +261,8 @@ export function buildDocxPayload(
   milestone?: string,
   contentMarkdown?: string,
 ): GenerateDocxInput {
-  const scenario = project.scenarioId
-    ? getScenarioById(project.scenarioId)
-    : undefined;
+  const t = getTranslator(locale);
+  const scenario = localizeScenario(project.scenarioId, locale);
 
   const editorial = contentMarkdown
     ? parseDocumentMarkdown(contentMarkdown)
@@ -283,11 +278,10 @@ export function buildDocxPayload(
     meta: {
       version,
       generatedByName,
-      phaseLabel: getPhaseLabel(fromPhase, project.approach),
+      phaseLabel: tDynamic(t, `enums.phase.${fromPhase}`),
       milestone,
-      scenarioLabel:
-        scenario && locale === "en" ? scenario.labelEn : scenario?.labelFr,
-      approachLabel: HERMES_APPROACH_LABELS[project.approach],
+      scenarioLabel: scenario?.label,
+      approachLabel: tDynamic(t, `enums.approach.${project.approach}`),
       tasksList: buildTasksList(tasks, fromPhase, locale),
       classification: "Interne",
       documentStatus: "Final",

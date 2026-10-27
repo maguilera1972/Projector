@@ -3,6 +3,7 @@ import { Header } from "@/components/layout/header";
 import { ProfileForm } from "@/components/user/profile-form";
 import { getUserById } from "@/lib/db/store";
 import { getSessionUser } from "@/lib/auth/session";
+import { getRequestTranslator } from "@/lib/i18n/server";
 
 export default async function ProfilPage() {
   const session = await getSessionUser();
@@ -10,12 +11,13 @@ export default async function ProfilPage() {
 
   const user = await getUserById(session.id);
   if (!user) redirect("/login");
+  const { t } = await getRequestTranslator();
 
   return (
     <>
       <Header
-        title="Mon profil"
-        subtitle="Informations personnelles et affichage de l'avatar"
+        title={t("profile.title")}
+        subtitle={t("profile.subtitle")}
         user={session}
       />
 

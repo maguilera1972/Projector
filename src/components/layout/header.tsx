@@ -7,6 +7,7 @@ import { CreateProjectButton } from "@/components/project/create-project-button"
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { UserAvatar } from "@/components/user/user-avatar";
 import type { SessionUser } from "@/lib/auth/permissions";
+import { useI18n } from "@/lib/i18n/client";
 
 interface HeaderProps {
   title: string;
@@ -16,6 +17,7 @@ interface HeaderProps {
 
 export function Header({ title, subtitle, user }: HeaderProps) {
   const router = useRouter();
+  const { t } = useI18n();
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -38,7 +40,7 @@ export function Header({ title, subtitle, user }: HeaderProps) {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="search"
-              placeholder="Rechercher un projet, une tâche..."
+              placeholder={t("header.searchPlaceholder")}
               className="h-10 w-72 rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm outline-none transition-colors focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/20"
             />
           </div>
@@ -50,14 +52,14 @@ export function Header({ title, subtitle, user }: HeaderProps) {
           <Link
             href="/parametres/profil"
             className="hidden text-right sm:block hover:opacity-80"
-            title="Mon profil"
+            title={t("common.myProfile")}
           >
             <p className="text-sm font-medium text-slate-900">{user?.name}</p>
             <p className="text-xs text-brand-muted">{user?.email}</p>
           </Link>
 
           {user ? (
-            <Link href="/parametres/profil" title="Mon profil">
+            <Link href="/parametres/profil" title={t("common.myProfile")}>
               <UserAvatar
                 name={user.name}
                 email={user.email}
@@ -75,7 +77,8 @@ export function Header({ title, subtitle, user }: HeaderProps) {
             type="button"
             onClick={handleLogout}
             className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50"
-            aria-label="Se déconnecter"
+            aria-label={t("common.logout")}
+            title={t("common.logout")}
           >
             <LogOut className="h-5 w-5" />
           </button>

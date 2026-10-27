@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { LOCALE_NATIVE_NAMES } from "@/lib/i18n/config";
 import { useRouter } from "next/navigation";
 import {
   Download,
@@ -598,7 +599,7 @@ export function GeneratedDocumentsPanel({
             Gabarits HERMES 5.1 officiels (Word) depuis{" "}
             <code className="text-xs">reference-data/hermes/word-templates/</code>
             . Langue du projet :{" "}
-            <strong>{project.documentLocale === "en" ? "English" : "Français"}</strong>
+            <strong>{LOCALE_NATIVE_NAMES[project.documentLocale ?? "fr"]}</strong>
             {canEdit && (
               <>
                 {" "}
