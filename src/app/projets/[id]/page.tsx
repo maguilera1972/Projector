@@ -31,6 +31,8 @@ import { formatDate } from "@/lib/utils";
 import { localizeScenario, localizeTasks } from "@/lib/hermes/i18n";
 import { toAssigneeOptions } from "@/lib/users";
 import { ProjectLanguageSelect } from "@/components/project/project-language-select";
+import { ProjectDocumentsExplorer } from "@/components/project/project-documents-explorer";
+import { loadProjectDocumentsExplorer } from "@/lib/documents/explorer-data";
 import { getRequestTranslator } from "@/lib/i18n/server";
 import { normalizeLocale, toIntlLocale } from "@/lib/i18n/config";
 import { tDynamic } from "@/lib/i18n/translate";
@@ -112,6 +114,7 @@ export default async function ProjectDetailPage({
   const canApproveAsMandant = canUserActAsMandant(user, project);
   const phaseLabel = tDynamic(t, `enums.phase.${project.currentPhase}`);
   const scenarioLabel = localizeScenario(project.scenarioId, locale)?.label ?? null;
+  const documentsExplorer = await loadProjectDocumentsExplorer(id, user);
   const canChangeLanguage =
     canSubmitPhase || user.role === "admin";
 
@@ -184,6 +187,10 @@ export default async function ProjectDetailPage({
               schedule={schedule}
               baselines={baselines}
             />
+
+            {documentsExplorer && (
+              <ProjectDocumentsExplorer {...documentsExplorer} showProjectLink />
+            )}
 
             <GeneratedDocumentsPanel
               project={project}

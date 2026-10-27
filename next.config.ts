@@ -10,8 +10,18 @@ const publicHostname = (() => {
   }
 })();
 
+const uploadMaxMb = (() => {
+  const value = Number(process.env.PROJECTOR_UPLOAD_MAX_MB ?? "25");
+  return Number.isFinite(value) && value > 0 ? value : 25;
+})();
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // Le proxy (middleware) met le corps des requêtes en tampon : il doit accepter
+    // les documents annexes jusqu'à la taille maximale configurée (+ marge multipart).
+    proxyClientMaxBodySize: `${Math.ceil(uploadMaxMb) + 5}mb`,
+  },
   // Évite les conflits si .next/ a été créé par root (Permission denied / Turbopack panic).
   distDir: process.env.NEXT_DIST_DIR ?? ".local/next",
   allowedDevOrigins: [

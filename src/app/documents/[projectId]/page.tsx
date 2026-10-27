@@ -13,6 +13,8 @@ import {
 } from "@/lib/db/store";
 import { canUserEditProjectDocuments } from "@/lib/hermes/project-roles";
 import { getRequestTranslator } from "@/lib/i18n/server";
+import { ProjectDocumentsExplorer } from "@/components/project/project-documents-explorer";
+import { loadProjectDocumentsExplorer } from "@/lib/documents/explorer-data";
 
 interface ProjectDocumentsPageProps {
   params: Promise<{ projectId: string }>;
@@ -37,6 +39,7 @@ export default async function ProjectDocumentsPage({
   }
 
   const documents = await listGeneratedDocumentsByProject(projectId);
+  const explorer = await loadProjectDocumentsExplorer(projectId, user);
   const portfolio = project.portfolioId
     ? await getPortfolioById(project.portfolioId)
     : undefined;
@@ -59,11 +62,21 @@ export default async function ProjectDocumentsPage({
           className="mb-6 flex items-center gap-1.5 text-sm text-brand-muted"
         >
           <Link href="/documents" className="hover:text-brand-indigo">
-            Documents
+            {t("pages.documentsTitle")}
           </Link>
           <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="font-medium text-slate-900">{project.name}</span>
         </nav>
+
+        {explorer && (
+          <div className="mb-8">
+            <ProjectDocumentsExplorer {...explorer} />
+          </div>
+        )}
+
+        <h2 className="mb-4 text-lg font-semibold text-slate-900">
+          {t("annexes.hermesDeliverables")}
+        </h2>
 
         <PdfExportBar
           projectId={project.id}
@@ -82,7 +95,7 @@ export default async function ProjectDocumentsPage({
             href={`/projets/${project.id}`}
             className="font-medium text-brand-indigo hover:underline"
           >
-            Ouvrir la fiche projet →
+            {t("annexes.openProject")}
           </Link>
         </p>
       </main>

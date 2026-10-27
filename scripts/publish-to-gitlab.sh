@@ -22,7 +22,7 @@ REMOTE_URL="https://${HOST}/Aguilera_Lab/Projector.git"
 REPO_WEB="https://${HOST}/Aguilera_Lab/Projector"
 BRANCH="main"
 TOKEN_FILE="${HOME}/.config/gitlab/personal_access_token"
-EXCLUDES=(.env.local '.env*.local' .local/ data/ generated-documents/)
+EXCLUDES=(.env.local '.env*.local' .local/ data/ generated-documents/ uploads/)
 
 DRY_RUN=0
 MSG=""

@@ -1,7 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { Paperclip } from "lucide-react";
+import { useI18n } from "@/lib/i18n/client";
+import { tDynamic } from "@/lib/i18n/translate";
 import { FolderOpen, FileText, ChevronRight, FileDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { getPhaseLabel, HERMES_APPROACH_LABELS } from "@/lib/hermes/phases";
 import { formatDate } from "@/lib/utils";
 import type { HermesApproach, HermesPhaseId } from "@/types";
 
@@ -12,6 +16,7 @@ export interface ProjectDocumentFolderSummary {
   lastGeneratedAt?: string;
   currentPhase: HermesPhaseId;
   approach: HermesApproach;
+  annexCount: number;
 }
 
 interface ProjectDocumentFoldersProps {
@@ -19,17 +24,15 @@ interface ProjectDocumentFoldersProps {
 }
 
 export function ProjectDocumentFolders({ projects }: ProjectDocumentFoldersProps) {
+  const { t, locale } = useI18n();
   if (projects.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
         <FolderOpen className="mx-auto h-12 w-12 text-slate-300" />
         <p className="mt-4 text-sm font-medium text-slate-900">
-          Aucun document HERMES généré
+          {t("projects.noProjects")}
         </p>
-        <p className="mt-1 text-sm text-brand-muted">
-          Validez une phase de projet pour créer automatiquement les livrables
-          requis. Ils apparaîtront ici regroupés par projet.
-        </p>
+        <p className="mt-1 text-sm text-brand-muted">{t("annexes.sectionHelp")}</p>
       </div>
     );
   }
@@ -59,32 +62,32 @@ export function ProjectDocumentFolders({ projects }: ProjectDocumentFoldersProps
 
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Badge variant="info">
-                  {getPhaseLabel(project.currentPhase, project.approach)}
+                  {tDynamic(t, `enums.phase.${project.currentPhase}`)}
                 </Badge>
                 <Badge variant="muted">
-                  {HERMES_APPROACH_LABELS[project.approach]}
+                  {tDynamic(t, `enums.approach.${project.approach}`)}
                 </Badge>
               </div>
 
               <div className="mt-3 flex items-center gap-1.5 text-sm text-brand-muted">
                 <FileText className="h-4 w-4 shrink-0" />
                 <span>
-                  {project.documentCount} document
-                  {project.documentCount !== 1 ? "s" : ""}
+                  {t("annexes.hermesBadge")} : {project.documentCount}
                 </span>
+                <span aria-hidden="true">·</span>
+                <Paperclip className="h-4 w-4 shrink-0" />
+                <span>{t("annexes.annexCount", { count: project.annexCount })}</span>
                 {project.lastGeneratedAt && (
                   <>
                     <span aria-hidden="true">·</span>
-                    <span>
-                      Dernier :{" "}
-                      {formatDate(project.lastGeneratedAt.slice(0, 10))}
-                    </span>
+                    <span>{formatDate(project.lastGeneratedAt.slice(0, 10), locale)}</span>
                   </>
                 )}
               </div>
             </div>
           </Link>
 
+          {project.documentCount > 0 && (
           <div className="border-t border-slate-100 px-5 py-3">
             <a
               href={`/api/projects/${project.projectId}/generated-documents/pdf`}
@@ -92,9 +95,10 @@ export function ProjectDocumentFolders({ projects }: ProjectDocumentFoldersProps
               title={`Exporter les ${project.documentCount} documents en PDF`}
             >
               <FileDown className="h-3.5 w-3.5" />
-              Exporter en PDF
+              PDF
             </a>
           </div>
+          )}
         </div>
       ))}
     </div>

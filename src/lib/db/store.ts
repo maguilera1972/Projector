@@ -87,6 +87,10 @@ import type {
   InvitationSummary,
   EntraRoleMapping,
   EntraSettings,
+  AnnexCategory,
+  AnnexDocument,
+  AnnexDocumentVersion,
+  ProjectFolder,
   EntraUnknownUserPolicy,
 } from "@/types";
 import { applyActivityAggregation } from "@/lib/tasks/progress";
@@ -99,7 +103,13 @@ import {
   wouldCreateDependencyCycle,
 } from "@/lib/scheduling/engine";
 import { buildQualityGateContext, buildQualityGateChecklist, getInitialBudgetStatus, isChecklistReady, isChecklistReadyForSession } from "@/lib/hermes/quality-gates";
-import { getNextPhase, isTerminalPhase, getPhaseLabel } from "@/lib/hermes/phases";
+import { getNextPhase, isTerminalPhase, getPhaseLabel, getPhasesForApproach } from "@/lib/hermes/phases";
+import {
+  getUploadsRoot,
+  removeAnnexFile,
+  removeProjectAnnexFiles,
+  saveAnnexFile,
+} from "@/lib/documents/annex-storage";
 import { createAuditEntry } from "@/lib/audit/log";
 import { generateDocumentsForValidation } from "@/lib/documents/generate";
 import {
@@ -221,6 +231,51 @@ interface Database {
   notifications: Notification[];
   invitations: Invitation[];
   entraSettings: EntraSettings;
+  annexDocuments: AnnexDocument[];
+  projectFolders: ProjectFolder[];
+}
+
+export function generalFolderId(projectId: string): string {
+  return `${projectId}__general`;
+}
+
+export function phaseFolderId(projectId: string, phase: HermesPhaseId): string {
+  return `${projectId}__phase__${phase}`;
+}
+
+/**
+ * Garantit le dossier « Général » et un dossier par phase de l'approche du projet.
+ * N'efface jamais de dossier existant (changement d'approche : ajout des manquants).
+ */
+function ensureProjectFolders(
+  folders: ProjectFolder[],
+  project: Project,
+  now = new Date().toISOString(),
+): boolean {
+  let changed = false;
+  const existing = new Set(
+    folders.filter((folder) => folder.projectId === project.id).map((folder) => folder.id),
+  );
+  const general = generalFolderId(project.id);
+  if (!existing.has(general)) {
+    folders.push({ id: general, projectId: project.id, kind: "general", order: 0, createdAt: now });
+    changed = true;
+  }
+  for (const phase of getPhasesForApproach(project.approach)) {
+    const id = phaseFolderId(project.id, phase.id);
+    if (!existing.has(id)) {
+      folders.push({
+        id,
+        projectId: project.id,
+        kind: "phase",
+        phase: phase.id,
+        order: phase.order,
+        createdAt: now,
+      });
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 const DEFAULT_ENTRA_SETTINGS: EntraSettings = {
@@ -283,6 +338,19 @@ function normalizeDatabase(raw: Partial<Database>): Database {
     generatedDocuments: raw.generatedDocuments ?? [],
     notifications: raw.notifications ?? [],
     invitations: raw.invitations ?? [],
+    annexDocuments: (raw.annexDocuments ?? []).map((doc) => ({
+      ...doc,
+      folderId:
+        doc.folderId ??
+        (doc.phases?.length === 1
+          ? phaseFolderId(doc.projectId, doc.phases[0])
+          : generalFolderId(doc.projectId)),
+    })),
+    projectFolders: (() => {
+      const folders = [...(raw.projectFolders ?? [])];
+      for (const project of projects) ensureProjectFolders(folders, project);
+      return folders;
+    })(),
     entraSettings: {
       ...DEFAULT_ENTRA_SETTINGS,
       ...(raw.entraSettings ?? {}),
@@ -332,6 +400,8 @@ async function loadDatabaseFromDisk(): Promise<Database> {
       generatedDocuments: [],
       notifications: [],
       invitations: [],
+      annexDocuments: [],
+      projectFolders: [],
       entraSettings: { ...DEFAULT_ENTRA_SETTINGS, mappings: [] },
     };
 
@@ -630,6 +700,12 @@ export async function deletePortfolio(portfolioId: string): Promise<{
     db.notifications = db.notifications.filter(
       (item) => !item.projectId || !projectIds.includes(item.projectId),
     );
+    db.annexDocuments = db.annexDocuments.filter(
+      (item) => !projectIds.includes(item.projectId),
+    );
+    db.projectFolders = db.projectFolders.filter(
+      (item) => !projectIds.includes(item.projectId),
+    );
 
     return { deletedProjects: projectIds.length, projectIds };
   });
@@ -637,9 +713,10 @@ export async function deletePortfolio(portfolioId: string): Promise<{
   if (!result) return null;
 
   await Promise.all(
-    result.projectIds.map((projectId) =>
+    result.projectIds.flatMap((projectId) => [
       deleteProjectGeneratedDocxFiles(projectId),
-    ),
+      removeProjectAnnexFiles(getAnnexUploadsRoot(), projectId).catch(() => undefined),
+    ]),
   );
   return { deletedProjects: result.deletedProjects };
 }
@@ -1125,6 +1202,7 @@ export async function createProject(
 
   db.projects.push(project);
   db.tasks.push(...tasks);
+  ensureProjectFolders(db.projectFolders, project);
 
   if (project.budgetStatus === "pending_mandant") {
     notifyBudgetApprovalRequired(db.notifications, db.users, project);
@@ -1237,6 +1315,12 @@ export async function deleteProject(projectId: string): Promise<boolean> {
     db.notifications = db.notifications.filter(
       (item) => item.projectId !== projectId,
     );
+    db.annexDocuments = db.annexDocuments.filter(
+      (item) => item.projectId !== projectId,
+    );
+    db.projectFolders = db.projectFolders.filter(
+      (item) => item.projectId !== projectId,
+    );
     return true;
   });
 
@@ -1244,6 +1328,9 @@ export async function deleteProject(projectId: string): Promise<boolean> {
     // Nettoyage fichiers : ne bloque jamais la réponse API
     void deleteProjectGeneratedDocxFiles(projectId).catch((error) => {
       console.warn(`deleteProjectGeneratedDocxFiles(${projectId}):`, error);
+    });
+    void removeProjectAnnexFiles(getAnnexUploadsRoot(), projectId).catch((error) => {
+      console.warn(`removeProjectAnnexFiles(${projectId}):`, error);
     });
   }
   return deleted;
@@ -2215,10 +2302,15 @@ export async function listProjectGeneratedDocumentSummaries(): Promise<
     lastGeneratedAt?: string;
     currentPhase: Project["currentPhase"];
     approach: Project["approach"];
+    annexCount: number;
   }[]
 > {
   const db = await readDatabase();
   const stats = new Map<string, { count: number; last?: string }>();
+  const annexCounts = new Map<string, number>();
+  for (const doc of db.annexDocuments) {
+    if (!doc.deletedAt) annexCounts.set(doc.projectId, (annexCounts.get(doc.projectId) ?? 0) + 1);
+  }
 
   for (const doc of db.generatedDocuments) {
     const entry = stats.get(doc.projectId) ?? { count: 0 };
@@ -2230,9 +2322,8 @@ export async function listProjectGeneratedDocumentSummaries(): Promise<
   }
 
   return db.projects
-    .filter((project) => stats.has(project.id))
     .map((project) => {
-      const { count, last } = stats.get(project.id)!;
+      const { count, last } = stats.get(project.id) ?? { count: 0 };
       return {
         projectId: project.id,
         projectName: project.name,
@@ -2240,6 +2331,7 @@ export async function listProjectGeneratedDocumentSummaries(): Promise<
         lastGeneratedAt: last,
         currentPhase: project.currentPhase,
         approach: project.approach,
+        annexCount: annexCounts.get(project.id) ?? 0,
       };
     })
     .sort(
@@ -3779,5 +3871,363 @@ export async function resolveEntraLogin(
     user.lastLoginAt = now;
     audit("auth.entra_login", { linkedBy, role: user.role }, user);
     return { ok: true, user: stripPassword(user), linkedBy };
+  });
+}
+
+// ─── Documents annexes ──────────────────────────────────────────────────────
+
+export function getAnnexUploadsRoot(): string {
+  return getUploadsRoot(DB_FILE);
+}
+
+export interface AnnexFileInput {
+  originalName: string;
+  mimeType: string;
+  data: Buffer;
+}
+
+export interface AnnexMetadataInput {
+  title?: string;
+  description?: string;
+  category?: AnnexCategory;
+  phases?: HermesPhaseId[];
+  folderId?: string;
+}
+
+function resolveAnnexFolder(
+  db: Database,
+  project: Project,
+  folderId: string | undefined,
+): string {
+  ensureProjectFolders(db.projectFolders, project);
+  if (folderId) {
+    const folder = db.projectFolders.find(
+      (item) => item.id === folderId && item.projectId === project.id,
+    );
+    if (!folder) throw new Error("Dossier introuvable.");
+    return folder.id;
+  }
+  return phaseFolderId(project.id, project.currentPhase);
+}
+
+function normalizeAnnexPhases(project: Project, phases: HermesPhaseId[] | undefined): HermesPhaseId[] {
+  if (!phases || phases.length === 0) return [];
+  const allowed = new Set(getPhasesForApproach(project.approach).map((phase) => phase.id));
+  const unique = [...new Set(phases.filter((phase) => allowed.has(phase)))];
+  return unique.length === allowed.size ? [] : unique;
+}
+
+export async function listAnnexDocumentsByProject(projectId: string): Promise<AnnexDocument[]> {
+  const db = await readDatabase();
+  return db.annexDocuments
+    .filter((doc) => doc.projectId === projectId && !doc.deletedAt)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function countAnnexDocumentsByProject(): Promise<Record<string, number>> {
+  const db = await readDatabase();
+  const counts: Record<string, number> = {};
+  for (const doc of db.annexDocuments) {
+    if (!doc.deletedAt) counts[doc.projectId] = (counts[doc.projectId] ?? 0) + 1;
+  }
+  return counts;
+}
+
+export async function getAnnexDocumentById(id: string): Promise<AnnexDocument | undefined> {
+  const db = await readDatabase();
+  return db.annexDocuments.find((doc) => doc.id === id && !doc.deletedAt);
+}
+
+export async function createAnnexDocument(
+  projectId: string,
+  metadata: AnnexMetadataInput,
+  file: AnnexFileInput,
+  actor: AuditActor,
+): Promise<AnnexDocument> {
+  const project = await getProjectById(projectId);
+  if (!project) throw new Error("Projet introuvable.");
+
+  const documentId = crypto.randomUUID();
+  const root = getAnnexUploadsRoot();
+  const stored = await saveAnnexFile(root, projectId, documentId, 1, file.originalName, file.data);
+
+  try {
+    return await mutateDatabase((db) => {
+      const now = new Date().toISOString();
+      const version: AnnexDocumentVersion = {
+        version: 1,
+        storedName: stored.storedName,
+        originalName: file.originalName,
+        mimeType: file.mimeType,
+        size: file.data.length,
+        sha256: stored.sha256,
+        uploadedBy: actor.id,
+        uploadedByName: actor.name,
+        uploadedAt: now,
+      };
+      const document: AnnexDocument = {
+        id: documentId,
+        projectId,
+        title: metadata.title?.trim() || file.originalName,
+        description: metadata.description?.trim() || undefined,
+        category: metadata.category ?? "autre",
+        folderId: resolveAnnexFolder(db, project, metadata.folderId),
+        phases: normalizeAnnexPhases(project, metadata.phases),
+        versions: [version],
+        createdBy: actor.id,
+        createdByName: actor.name,
+        createdAt: now,
+        updatedAt: now,
+      };
+      db.annexDocuments.push(document);
+      appendAudit(db, {
+        projectId,
+        action: "annex.uploaded",
+        actorId: actor.id,
+        actorName: actor.name,
+        details: { documentId, title: document.title, fileName: file.originalName, size: version.size },
+      });
+      return document;
+    });
+  } catch (error) {
+    await removeAnnexFile(root, projectId, documentId, stored.storedName).catch(() => undefined);
+    throw error;
+  }
+}
+
+export async function addAnnexDocumentVersion(
+  documentId: string,
+  file: AnnexFileInput,
+  comment: string | undefined,
+  actor: AuditActor,
+): Promise<AnnexDocument> {
+  const existing = await getAnnexDocumentById(documentId);
+  if (!existing) throw new Error("Document introuvable.");
+
+  const root = getAnnexUploadsRoot();
+  const nextVersion = Math.max(...existing.versions.map((v) => v.version)) + 1;
+  const stored = await saveAnnexFile(
+    root,
+    existing.projectId,
+    documentId,
+    nextVersion,
+    file.originalName,
+    file.data,
+  );
+
+  try {
+    return await mutateDatabase((db) => {
+      const document = db.annexDocuments.find((doc) => doc.id === documentId && !doc.deletedAt);
+      if (!document) throw new Error("Document introuvable.");
+      const now = new Date().toISOString();
+      const version = Math.max(...document.versions.map((v) => v.version)) + 1;
+      document.versions.push({
+        version,
+        storedName: stored.storedName,
+        originalName: file.originalName,
+        mimeType: file.mimeType,
+        size: file.data.length,
+        sha256: stored.sha256,
+        comment: comment?.trim().slice(0, 500) || undefined,
+        uploadedBy: actor.id,
+        uploadedByName: actor.name,
+        uploadedAt: now,
+      });
+      document.updatedAt = now;
+      appendAudit(db, {
+        projectId: document.projectId,
+        action: "annex.version_added",
+        actorId: actor.id,
+        actorName: actor.name,
+        details: { documentId, title: document.title, version, fileName: file.originalName },
+      });
+      return document;
+    });
+  } catch (error) {
+    await removeAnnexFile(root, existing.projectId, documentId, stored.storedName).catch(
+      () => undefined,
+    );
+    throw error;
+  }
+}
+
+export async function updateAnnexDocument(
+  documentId: string,
+  metadata: AnnexMetadataInput,
+  actor: AuditActor,
+): Promise<AnnexDocument> {
+  return mutateDatabase((db) => {
+    const document = db.annexDocuments.find((doc) => doc.id === documentId && !doc.deletedAt);
+    if (!document) throw new Error("Document introuvable.");
+    const project = db.projects.find((p) => p.id === document.projectId);
+    if (!project) throw new Error("Projet introuvable.");
+
+    if (metadata.title !== undefined) {
+      const title = metadata.title.trim();
+      if (!title) throw new Error("Le titre est requis.");
+      document.title = title.slice(0, 200);
+    }
+    if (metadata.description !== undefined) {
+      document.description = metadata.description.trim().slice(0, 2000) || undefined;
+    }
+    if (metadata.category !== undefined) document.category = metadata.category;
+    if (metadata.phases !== undefined) {
+      document.phases = normalizeAnnexPhases(project, metadata.phases);
+    }
+    if (metadata.folderId !== undefined) {
+      document.folderId = resolveAnnexFolder(db, project, metadata.folderId);
+    }
+    document.updatedAt = new Date().toISOString();
+    appendAudit(db, {
+      projectId: document.projectId,
+      action: "annex.updated",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: { documentId, title: document.title },
+    });
+    return document;
+  });
+}
+
+/** Suppression logique : le document disparaît de l'interface, fichiers et historique conservés. */
+export async function softDeleteAnnexDocument(
+  documentId: string,
+  actor: AuditActor,
+): Promise<boolean> {
+  return mutateDatabase((db) => {
+    const document = db.annexDocuments.find((doc) => doc.id === documentId && !doc.deletedAt);
+    if (!document) return false;
+    document.deletedAt = new Date().toISOString();
+    document.deletedBy = actor.id;
+    appendAudit(db, {
+      projectId: document.projectId,
+      action: "annex.deleted",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: { documentId, title: document.title, versions: document.versions.length },
+    });
+    return true;
+  });
+}
+
+// ─── Dossiers documentaires par projet ──────────────────────────────────────
+
+export async function listProjectFolders(projectId: string): Promise<ProjectFolder[]> {
+  const project = await getProjectById(projectId);
+  if (!project) return [];
+  const db = await readDatabase();
+  if (!db.projectFolders.some((folder) => folder.id === phaseFolderId(projectId, project.currentPhase))) {
+    await mutateDatabase((mutable) => {
+      ensureProjectFolders(mutable.projectFolders, project);
+    });
+  }
+  return db.projectFolders
+    .filter((folder) => folder.projectId === projectId)
+    .sort((a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt));
+}
+
+function assertCustomFolderName(name: string): string {
+  const cleaned = name.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 80);
+  if (!cleaned) throw new Error("folderNameRequired");
+  return cleaned;
+}
+
+export async function createCustomFolder(
+  projectId: string,
+  parentId: string,
+  name: string,
+  actor: AuditActor,
+): Promise<ProjectFolder> {
+  const project = await getProjectById(projectId);
+  if (!project) throw new Error("Projet introuvable.");
+  return mutateDatabase((db) => {
+    ensureProjectFolders(db.projectFolders, project);
+    const parent = db.projectFolders.find(
+      (folder) => folder.id === parentId && folder.projectId === projectId,
+    );
+    if (!parent || parent.kind === "custom") throw new Error("folderParentInvalid");
+    const cleanName = assertCustomFolderName(name);
+    if (
+      db.projectFolders.some(
+        (folder) =>
+          folder.parentId === parentId &&
+          folder.name?.toLowerCase() === cleanName.toLowerCase(),
+      )
+    ) {
+      throw new Error("folderExists");
+    }
+    const siblings = db.projectFolders.filter((folder) => folder.parentId === parentId);
+    const folder: ProjectFolder = {
+      id: crypto.randomUUID(),
+      projectId,
+      kind: "custom",
+      parentId,
+      phase: parent.phase,
+      name: cleanName,
+      order: parent.order + (siblings.length + 1) / 1000,
+      createdAt: new Date().toISOString(),
+      createdBy: actor.id,
+    };
+    db.projectFolders.push(folder);
+    appendAudit(db, {
+      projectId,
+      action: "folder.created",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: { folderId: folder.id, name: cleanName, parentId },
+    });
+    return folder;
+  });
+}
+
+export async function renameCustomFolder(
+  projectId: string,
+  folderId: string,
+  name: string,
+  actor: AuditActor,
+): Promise<ProjectFolder> {
+  return mutateDatabase((db) => {
+    const folder = db.projectFolders.find(
+      (item) => item.id === folderId && item.projectId === projectId,
+    );
+    if (!folder || folder.kind !== "custom") throw new Error("folderNotCustom");
+    const cleanName = assertCustomFolderName(name);
+    const previous = folder.name;
+    folder.name = cleanName;
+    appendAudit(db, {
+      projectId,
+      action: "folder.renamed",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: { folderId, from: previous, to: cleanName },
+    });
+    return folder;
+  });
+}
+
+export async function deleteCustomFolder(
+  projectId: string,
+  folderId: string,
+  actor: AuditActor,
+): Promise<boolean> {
+  return mutateDatabase((db) => {
+    const index = db.projectFolders.findIndex(
+      (item) => item.id === folderId && item.projectId === projectId,
+    );
+    if (index === -1) return false;
+    const folder = db.projectFolders[index];
+    if (folder.kind !== "custom") throw new Error("folderNotCustom");
+    if (db.annexDocuments.some((doc) => doc.folderId === folderId && !doc.deletedAt)) {
+      throw new Error("folderNotEmpty");
+    }
+    db.projectFolders.splice(index, 1);
+    appendAudit(db, {
+      projectId,
+      action: "folder.deleted",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: { folderId, name: folder.name },
+    });
+    return true;
   });
 }

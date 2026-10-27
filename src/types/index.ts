@@ -449,6 +449,77 @@ export interface Notification {
   createdAt: string;
 }
 
+export type AnnexCategory =
+  | "contrat"
+  | "offre"
+  | "compte_rendu"
+  | "specification"
+  | "autre";
+
+export const ANNEX_CATEGORIES: AnnexCategory[] = [
+  "contrat",
+  "offre",
+  "compte_rendu",
+  "specification",
+  "autre",
+];
+
+export interface AnnexDocumentVersion {
+  version: number;
+  /** Nom de fichier interne généré (jamais dérivé du nom fourni par l'utilisateur). */
+  storedName: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  sha256: string;
+  comment?: string;
+  uploadedBy: string;
+  uploadedByName: string;
+  uploadedAt: string;
+}
+
+export type ProjectFolderKind = "general" | "phase" | "custom";
+
+/**
+ * Dossier documentaire d'un projet : un dossier « Général », un dossier par phase HERMES
+ * (créés automatiquement) et des sous-dossiers personnalisés (un niveau) dans ceux-ci.
+ */
+export interface ProjectFolder {
+  id: string;
+  projectId: string;
+  kind: ProjectFolderKind;
+  phase?: HermesPhaseId;
+  /** Dossier parent (général ou phase) pour un sous-dossier personnalisé. */
+  parentId?: string;
+  /** Nom saisi (sous-dossiers personnalisés uniquement ; les autres sont traduits). */
+  name?: string;
+  order: number;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export type PhaseFolderStatus = "completed" | "current" | "upcoming";
+
+/** Document annexe d'un projet (hors livrables HERMES générés). */
+export interface AnnexDocument {
+  id: string;
+  projectId: string;
+  /** Dossier principal de classement. */
+  folderId: string;
+  title: string;
+  description?: string;
+  category: AnnexCategory;
+  /** Phases HERMES concernées ; liste vide = toutes les phases. */
+  phases: HermesPhaseId[];
+  versions: AnnexDocumentVersion[];
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
+  deletedBy?: string;
+}
+
 export type EntraMappingType = "appRole" | "group";
 
 /** Correspondance App Role / groupe Entra → rôle PROJECTOR. */

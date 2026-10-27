@@ -49,3 +49,7 @@ __pycache__/
 .idea/
 .vscode/
 *.swp
+
+# Documents annexes déposés (PROJECTOR_UPLOADS_DIR)
+uploads/
+/data/uploads/

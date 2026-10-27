@@ -37,6 +37,8 @@ export function CreateProjectDialog({
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [scenarios, setScenarios] = useState<HermesScenarioOption[]>([]);
   const [stakeholders, setStakeholders] = useState<AssigneeOption[]>([]);
+  const [initialFiles, setInitialFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<string>("");
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -138,8 +140,23 @@ export function CreateProjectDialog({
         return;
       }
 
+      const projectId = data.project!.id;
+      for (const [index, file] of initialFiles.entries()) {
+        setUploadProgress(
+          t("annexes.uploadingInitial", { done: index + 1, total: initialFiles.length }),
+        );
+        const upload = new FormData();
+        upload.set("file", file);
+        upload.set("category", "autre");
+        await fetch(`/api/projects/${projectId}/annexes`, { method: "POST", body: upload }).catch(
+          () => undefined,
+        );
+      }
+      setUploadProgress("");
+      setInitialFiles([]);
+
       onClose();
-      router.push(`/projets/${data.project!.id}`);
+      router.push(`/projets/${projectId}`);
       router.refresh();
     } catch {
       setError(t("common.networkError"));
@@ -458,6 +475,23 @@ export function CreateProjectDialog({
                 placeholder={t("projectForm.hoursPlaceholder")}
               />
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="initialAnnexes" className="mb-1.5 block text-sm font-medium">
+              {t("annexes.initialDocs")}
+            </label>
+            <input
+              id="initialAnnexes"
+              type="file"
+              multiple
+              onChange={(e) => setInitialFiles(Array.from(e.target.files ?? []))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-xs text-brand-muted">{t("annexes.initialDocsHelp")}</p>
+            {uploadProgress && (
+              <p className="mt-1 text-xs font-medium text-brand-indigo">{uploadProgress}</p>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
