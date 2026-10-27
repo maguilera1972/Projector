@@ -10,6 +10,8 @@ const PUBLIC_PATHS = [
   "/invitation/",
   "/api/invitations/accept",
   "/api/i18n/locale",
+  // Logos chargés par les clients mail, sans session.
+  "/brand/",
 ];
 
 async function isAuthenticated(request: NextRequest): Promise<boolean> {

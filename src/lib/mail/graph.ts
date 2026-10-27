@@ -11,12 +11,20 @@ interface GraphConfig {
   sender: string;
 }
 
+export interface MailAttachment {
+  name: string;
+  contentType: string;
+  content: Buffer;
+}
+
 export interface MailMessage {
   to: string | string[];
   subject: string;
   html: string;
   text?: string;
   replyTo?: string;
+  /** Pièces jointes « fileAttachment » (Graph limite la requête sendMail à ~3 Mo par fichier). */
+  attachments?: MailAttachment[];
 }
 
 export type MailResult =
@@ -117,6 +125,16 @@ export async function sendMail(message: MailMessage): Promise<MailResult> {
             toRecipients: recipients,
             ...(message.replyTo
               ? { replyTo: [{ emailAddress: { address: message.replyTo } }] }
+              : {}),
+            ...(message.attachments?.length
+              ? {
+                  attachments: message.attachments.map((attachment) => ({
+                    "@odata.type": "#microsoft.graph.fileAttachment",
+                    name: attachment.name,
+                    contentType: attachment.contentType,
+                    contentBytes: attachment.content.toString("base64"),
+                  })),
+                }
               : {}),
           },
           saveToSentItems: false,

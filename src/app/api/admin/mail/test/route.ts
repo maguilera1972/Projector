@@ -13,8 +13,8 @@ export async function POST() {
     return NextResponse.json({ error: t("common.accessDenied") }, { status: 403 });
   }
 
-  const { subject, html } = buildTestEmail(locale);
-  const result = await sendMail({ to: user.email, subject, html });
+  const { subject, html, text } = buildTestEmail(locale);
+  const result = await sendMail({ to: user.email, subject, html, text });
   if (!result.ok) {
     return NextResponse.json(
       { error: t("admin.mailTestFailed", { error: result.error }) },

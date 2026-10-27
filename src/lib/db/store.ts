@@ -1581,6 +1581,16 @@ function appendAudit(
   db.auditLog.push(createAuditEntry(entry));
 }
 
+/** Ajoute des entrées au journal d'audit (ex. envoi de rapports) sous verrou d'écriture. */
+export async function appendAuditEntries(
+  entries: Omit<AuditLogEntry, "id" | "createdAt">[],
+): Promise<void> {
+  if (entries.length === 0) return;
+  await mutateDatabase((db) => {
+    for (const entry of entries) appendAudit(db, entry);
+  });
+}
+
 export async function listAuditLogByProject(
   projectId: string,
 ): Promise<AuditLogEntry[]> {

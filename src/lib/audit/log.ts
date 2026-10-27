@@ -7,7 +7,8 @@ export type AuditAction =
   | "phase.submitted"
   | "phase.approved"
   | "phase.rejected"
-  | "project.initialized";
+  | "project.initialized"
+  | "report.sent";
 
 export function createAuditEntry(
   input: Omit<AuditLogEntry, "id" | "createdAt">,

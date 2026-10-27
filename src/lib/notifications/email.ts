@@ -22,9 +22,9 @@ export function flushNotificationEmails(users: DbUser[]): void {
 
     const locale = normalizeLocale(recipient.locale);
     const rendered = renderNotification(notification, locale);
-    const { subject, html } = buildNotificationEmail(rendered, recipient.name, locale);
+    const { subject, html, text } = buildNotificationEmail(rendered, recipient.name, locale);
 
-    void sendMail({ to: recipient.email, subject, html }).then((result) => {
+    void sendMail({ to: recipient.email, subject, html, text }).then((result) => {
       if (!result.ok) {
         console.warn(
           `[mail] Notification ${notification.kind} non envoyée à ${recipient.email} : ${result.error}`,

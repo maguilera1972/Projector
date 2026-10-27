@@ -22,8 +22,8 @@ export async function deliverInvitation(
   token: string,
 ): Promise<InvitationDeliveryResult> {
   const link = buildInvitationLink(token);
-  const { subject, html } = buildInvitationEmail(invitation, token);
-  const result = await sendMail({ to: invitation.email, subject, html });
+  const { subject, html, text } = buildInvitationEmail(invitation, token);
+  const result = await sendMail({ to: invitation.email, subject, html, text });
 
   const updated =
     (await recordInvitationEmailResult(

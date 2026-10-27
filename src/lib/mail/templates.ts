@@ -1,106 +1,152 @@
 import { getPublicUrl } from "@/lib/env";
-import { toIntlLocale, type Locale } from "@/lib/i18n/config";
+import { LOCALE_NATIVE_NAMES, toIntlLocale, type Locale } from "@/lib/i18n/config";
 import { getTranslator, tDynamic } from "@/lib/i18n/translate";
+import { getMailSender } from "@/lib/mail/graph";
+import { getMailTranslator, notificationCtaKey } from "@/lib/mail/i18n";
+import { absoluteUrl, renderEmail, type EmailDetail, type RenderedEmail } from "@/lib/mail/layout";
+import { localizeNotificationParams } from "@/lib/notifications/render";
 import type { InvitationSummary, Notification } from "@/types";
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function absoluteUrl(href: string): string {
-  if (/^https?:\/\//.test(href)) return href;
-  return `${getPublicUrl().replace(/\/$/, "")}${href.startsWith("/") ? "" : "/"}${href}`;
-}
-
-function layout(locale: Locale, content: string): string {
-  const t = getTranslator(locale);
-  return `<!doctype html>
-<html lang="${locale}">
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#0f172a;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
-    <tr><td align="center">
-      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
-        <tr><td style="background:#0f172a;padding:18px 28px;">
-          <span style="font-size:18px;font-weight:700;letter-spacing:2px;color:#ffffff;">PROJECTOR</span>
-        </td></tr>
-        <tr><td style="padding:28px;font-size:15px;line-height:1.6;">${content}</td></tr>
-        <tr><td style="padding:16px 28px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;">${escapeHtml(t("email.footer"))}</td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
-}
-
-function button(label: string, href: string): string {
-  return `<p style="margin:24px 0;"><a href="${escapeHtml(href)}" style="display:inline-block;background:linear-gradient(135deg,#7dd3fc,#818cf8,#a855f7);background-color:#818cf8;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:8px;">${escapeHtml(label)}</a></p>`;
-}
+const TIME_ZONE = "Europe/Zurich";
 
 export function buildInvitationEmail(
   invitation: InvitationSummary,
   token: string,
-): { subject: string; html: string } {
+): RenderedEmail {
   const locale = invitation.locale;
   const t = getTranslator(locale);
+  const tm = getMailTranslator(locale);
   const role = tDynamic(t, `enums.role.${invitation.role}`);
   const link = absoluteUrl(`/invitation/${encodeURIComponent(token)}`);
   const expires = new Intl.DateTimeFormat(toIntlLocale(locale), {
     dateStyle: "long",
-    timeZone: "Europe/Zurich",
+    timeZone: TIME_ZONE,
   }).format(new Date(invitation.expiresAt));
+  const inviter = invitation.invitedByName;
 
-  const greeting = invitation.name
-    ? t("email.greetingName", { name: invitation.name })
-    : t("email.greeting");
-
-  const personal = invitation.message
-    ? `<p style="margin:16px 0 4px;font-weight:600;">${escapeHtml(t("email.invitation.personalMessage"))}</p>
-       <blockquote style="margin:0;padding:12px 16px;background:#f8fafc;border-left:3px solid #818cf8;white-space:pre-line;">${escapeHtml(invitation.message)}</blockquote>`
-    : "";
-
-  const content = `
-    <p>${escapeHtml(greeting)}</p>
-    <p>${escapeHtml(t("email.invitation.body", { inviter: invitation.invitedByName, role }))}</p>
-    ${personal}
-    ${button(t("email.invitation.cta"), link)}
-    <p style="font-size:13px;color:#475569;">${escapeHtml(t("email.invitation.expires", { date: expires }))}</p>
-    <p style="font-size:12px;color:#64748b;word-break:break-all;">${escapeHtml(link)}</p>
-    <p style="font-size:13px;color:#64748b;">${escapeHtml(t("email.invitation.ignore"))}</p>`;
-
-  return {
-    subject: t("email.invitation.subject", { inviter: invitation.invitedByName }),
-    html: layout(locale, content),
-  };
+  return renderEmail({
+    locale,
+    subject: t("email.invitation.subject", { inviter }),
+    title: tm("invitation.title"),
+    preheader: tm("invitation.preheader", { inviter, date: expires }),
+    greeting: invitation.name
+      ? t("email.greetingName", { name: invitation.name })
+      : t("email.greeting"),
+    intro: t("email.invitation.body", { inviter, role }),
+    quote: invitation.message?.trim()
+      ? { label: t("email.invitation.personalMessage"), text: invitation.message }
+      : undefined,
+    details: [
+      { label: tm("details.invitedBy"), value: inviter },
+      { label: tm("details.role"), value: role },
+      { label: tm("details.email"), value: invitation.email },
+      { label: tm("details.validUntil"), value: expires },
+    ],
+    cta: { label: t("email.invitation.cta"), url: link },
+    notes: [t("email.invitation.ignore")],
+    footerNote: tm("invitation.reason", { inviter }),
+    preferencesLink: false,
+  });
 }
 
+/** Lignes « clé / valeur » d'une notification à partir de ses paramètres traduits. */
+function notificationDetails(notification: Notification, locale: Locale): EmailDetail[] {
+  if (!notification.params) return [];
+  const tm = getMailTranslator(locale);
+  const params = localizeNotificationParams(notification.params, locale);
+  const text = (value: string | number | undefined) =>
+    value === undefined ? "" : String(value);
+  const details: EmailDetail[] = [];
+
+  if (params.projectName !== undefined) {
+    details.push({
+      label: tm("details.project"),
+      value: text(params.projectName),
+      url: notification.projectId
+        ? `/projets/${encodeURIComponent(notification.projectId)}`
+        : undefined,
+    });
+  }
+  if (params.phase !== undefined) details.push({ label: tm("details.phase"), value: text(params.phase) });
+  if (params.taskTitle !== undefined) {
+    details.push({ label: tm("details.task"), value: text(params.taskTitle) });
+  }
+  if (params.documentTitle !== undefined) {
+    details.push({ label: tm("details.document"), value: text(params.documentTitle) });
+  }
+  const amount = notification.params.amount;
+  if (typeof amount === "number") {
+    details.push({
+      label: tm("details.amount"),
+      value: new Intl.NumberFormat(toIntlLocale(locale), {
+        style: "currency",
+        currency: "CHF",
+        maximumFractionDigits: 0,
+      }).format(amount),
+    });
+  }
+  if (params.actorName !== undefined) {
+    details.push({ label: tm("details.actor"), value: text(params.actorName) });
+  }
+  if (params.name !== undefined) details.push({ label: tm("details.account"), value: text(params.name) });
+  if (params.email !== undefined) details.push({ label: tm("details.email"), value: text(params.email) });
+  if (params.role !== undefined) details.push({ label: tm("details.role"), value: text(params.role) });
+  return details;
+}
+
+/** `notification` doit déjà être traduite (`renderNotification`) dans `locale`. */
 export function buildNotificationEmail(
   notification: Notification,
   recipientName: string,
   locale: Locale,
-): { subject: string; html: string } {
+): RenderedEmail {
   const t = getTranslator(locale);
-  const content = `
-    <p>${escapeHtml(t("email.greetingName", { name: recipientName }))}</p>
-    <p style="font-size:17px;font-weight:600;margin:0 0 8px;">${escapeHtml(notification.title)}</p>
-    <p>${escapeHtml(notification.message)}</p>
-    ${notification.href ? button(t("email.notification.cta"), absoluteUrl(notification.href)) : ""}
-    <p style="font-size:12px;color:#64748b;">${escapeHtml(t("email.notification.reason"))}</p>`;
+  const tm = getMailTranslator(locale);
 
-  return {
+  return renderEmail({
+    locale,
     subject: t("email.notification.subject", { title: notification.title }),
-    html: layout(locale, content),
-  };
+    title: notification.title,
+    preheader: notification.message,
+    greeting: t("email.greetingName", { name: recipientName }),
+    intro: notification.message,
+    details: notificationDetails(notification, locale),
+    cta: notification.href
+      ? {
+          label: notification.params
+            ? tm(notificationCtaKey(notification.kind))
+            : t("email.notification.cta"),
+          url: notification.href,
+        }
+      : undefined,
+    footerNote: t("email.notification.reason"),
+  });
 }
 
-export function buildTestEmail(locale: Locale): { subject: string; html: string } {
+export function buildTestEmail(locale: Locale): RenderedEmail {
   const t = getTranslator(locale);
-  return {
+  const tm = getMailTranslator(locale);
+  const portal = `${getPublicUrl().replace(/\/$/, "")}/`;
+  const sentAt = new Intl.DateTimeFormat(toIntlLocale(locale), {
+    dateStyle: "long",
+    timeStyle: "short",
+    timeZone: TIME_ZONE,
+  }).format(new Date());
+
+  return renderEmail({
+    locale,
     subject: t("email.test.subject"),
-    html: layout(locale, `<p>${escapeHtml(t("email.test.body"))}</p>`),
-  };
+    title: tm("test.title"),
+    intro: t("email.test.body"),
+    paragraphs: [tm("test.intro")],
+    details: [
+      { label: tm("details.sender"), value: getMailSender() ?? "—" },
+      { label: tm("details.sentAt"), value: sentAt },
+      { label: tm("details.language"), value: LOCALE_NATIVE_NAMES[locale] },
+      { label: tm("details.portal"), value: portal, url: portal },
+    ],
+    cta: { label: tm("layout.openPortal"), url: portal },
+    ctaLinkFallback: false,
+    footerNote: tm("test.reason"),
+  });
 }
