@@ -5,7 +5,6 @@
 > vérité fonctionnelle**). En cas de doute fonctionnel, se référer au cahier des charges ; ce fichier
 > fixe le **comment** (technique, conventions, garde-fous).
 >
-> *Compatibilité Cursor :* ce fichier peut être complété par des règles `.cursor/rules/*.mdc`
 > (une règle par domaine). Garder AGENTS.md comme référence faîtière.
 
 ---
@@ -68,7 +67,6 @@
 ├─ AGENTS.md
 ├─ cahier-des-charges-gestion-projets-hermes5.md
 ├─ docker-compose.yml
-├─ .cursor/rules/                 # règles MDC optionnelles, une par domaine
 ├─ packages/
 │  ├─ shared/                     # types partagés, schémas Zod, i18n keys, utils
 │  ├─ hermes-engine/              # moteur HERMES (data-driven) : phases, gates, scénarios
