@@ -4,8 +4,6 @@
 > Il accompagne le cahier des charges `cahier-des-charges-gestion-projets-hermes5.md` (la **source de
 > vérité fonctionnelle**). En cas de doute fonctionnel, se référer au cahier des charges ; ce fichier
 > fixe le **comment** (technique, conventions, garde-fous).
->
-> (une règle par domaine). Garder AGENTS.md comme référence faîtière.
 
 ---
 
