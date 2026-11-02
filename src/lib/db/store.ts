@@ -103,6 +103,9 @@ import type {
   TimeEntry,
   TaskEstimateRevision,
   EstimateRevisionReason,
+  DeletedTaskRecord,
+  CreateManualTaskInput,
+  UpdateTaskDefinitionInput,
 } from "@/types";
 import { INTEGRATION_FEATURES } from "@/types";
 import { applyActivityAggregation } from "@/lib/tasks/progress";
@@ -124,6 +127,7 @@ import {
 } from "@/lib/documents/annex-storage";
 import { createAuditEntry } from "@/lib/audit/log";
 import { assertValidTimeEntry, timeTrackingError } from "@/lib/time-tracking/rules";
+import { taskError } from "@/lib/tasks/errors";
 import { generateDocumentsForValidation } from "@/lib/documents/generate";
 import {
   buildDocxPayload,
@@ -279,6 +283,7 @@ interface Database {
   teamsMeetings: TeamsMeeting[];
   timeEntries: TimeEntry[];
   taskEstimateRevisions: TaskEstimateRevision[];
+  deletedTasks: DeletedTaskRecord[];
 }
 
 export function generalFolderId(projectId: string): string {
@@ -375,6 +380,7 @@ function normalizeDatabase(raw: Partial<Database>): Database {
   const tasks = (raw.tasks ?? []).map((task) => ({
     ...task,
     progress: task.progress ?? 0,
+    source: task.source ?? (task.templateId ? "hermes" : "manual"),
   }));
 
   const portfolios = (raw.portfolios ?? []).map((portfolio) => ({
@@ -449,6 +455,7 @@ function normalizeDatabase(raw: Partial<Database>): Database {
     teamsMeetings: raw.teamsMeetings ?? [],
     timeEntries: raw.timeEntries ?? [],
     taskEstimateRevisions: raw.taskEstimateRevisions ?? [],
+    deletedTasks: raw.deletedTasks ?? [],
   };
 }
 
@@ -502,6 +509,7 @@ async function loadDatabaseFromDisk(): Promise<Database> {
       teamsMeetings: [],
       timeEntries: [],
       taskEstimateRevisions: [],
+      deletedTasks: [],
     };
 
     await persistDatabaseAtomic(db);
@@ -1439,6 +1447,9 @@ export async function deleteProject(projectId: string): Promise<boolean> {
     );
     db.taskEstimateRevisions = db.taskEstimateRevisions.filter(
       (item) => item.projectId !== projectId,
+    );
+    db.deletedTasks = db.deletedTasks.filter(
+      (item) => item.task.projectId !== projectId,
     );
     delete db.integrationSettings.projectWeather[projectId];
     return true;
@@ -4849,6 +4860,66 @@ export async function listTaskEstimateRevisions(filter: {
  * chaque changement est historisé (révision + journal d'audit) et la première
  * valeur reste la référence initiale.
  */
+/** Applique une charge prévue (révision + audit) ; renvoie null si inchangée. Sous verrou. */
+function applyTaskEstimate(
+  db: Database,
+  task: Task,
+  input: { hours: number | null; reason?: EstimateRevisionReason; reasonText?: string },
+  actor: AuditActor,
+): TaskEstimateRevision | null {
+  const hours = input.hours;
+  if (hours !== null && (!Number.isFinite(hours) || hours < 0 || hours > MAX_ESTIMATE_HOURS)) {
+    throw timeTrackingError("invalidEstimate");
+  }
+  const newHours = hours && hours > 0 ? Math.round(hours * 100) / 100 : null;
+  const previousHours = task.estimatedHours ?? null;
+  if (newHours === previousHours) return null;
+
+  const reasonText = input.reasonText?.trim().slice(0, 500) || undefined;
+  const reason: EstimateRevisionReason =
+    previousHours === null && task.initialEstimatedHours === undefined
+      ? "initial"
+      : input.reason && input.reason !== "initial"
+        ? input.reason
+        : "other";
+
+  if (newHours === null) delete task.estimatedHours;
+  else task.estimatedHours = newHours;
+  if (task.initialEstimatedHours === undefined && newHours !== null) {
+    task.initialEstimatedHours = newHours;
+  }
+  task.updatedAt = new Date().toISOString();
+
+  const revision: TaskEstimateRevision = {
+    id: crypto.randomUUID(),
+    taskId: task.id,
+    projectId: task.projectId,
+    previousHours,
+    newHours,
+    reason,
+    reasonText,
+    changedBy: actor.id,
+    changedAt: task.updatedAt,
+  };
+  db.taskEstimateRevisions.push(revision);
+  appendAudit(db, {
+    projectId: task.projectId,
+    action: "task.estimate_changed",
+    actorId: actor.id,
+    actorName: actor.name,
+    details: {
+      taskId: task.id,
+      taskTitle: task.title,
+      revisionId: revision.id,
+      before: previousHours,
+      after: newHours,
+      reason,
+      reasonText: reasonText ?? null,
+    },
+  });
+  return revision;
+}
+
 export async function setTaskEstimate(
   taskId: string,
   input: { hours: number | null; reason?: EstimateRevisionReason; reasonText?: string },
@@ -4857,57 +4928,8 @@ export async function setTaskEstimate(
   return mutateDatabase((db) => {
     const task = db.tasks.find((item) => item.id === taskId);
     if (!task) throw timeTrackingError("taskNotFound");
-    const hours = input.hours;
-    if (hours !== null && (!Number.isFinite(hours) || hours < 0 || hours > MAX_ESTIMATE_HOURS)) {
-      throw timeTrackingError("invalidEstimate");
-    }
-    const newHours = hours && hours > 0 ? Math.round(hours * 100) / 100 : null;
-    const previousHours = task.estimatedHours ?? null;
-    if (newHours === previousHours) return { task: structuredClone(task), revision: null };
-
-    const reasonText = input.reasonText?.trim().slice(0, 500) || undefined;
-    const reason: EstimateRevisionReason =
-      previousHours === null && task.initialEstimatedHours === undefined
-        ? "initial"
-        : input.reason && input.reason !== "initial"
-          ? input.reason
-          : "other";
-
-    if (newHours === null) delete task.estimatedHours;
-    else task.estimatedHours = newHours;
-    if (task.initialEstimatedHours === undefined && newHours !== null) {
-      task.initialEstimatedHours = newHours;
-    }
-    task.updatedAt = new Date().toISOString();
-
-    const revision: TaskEstimateRevision = {
-      id: crypto.randomUUID(),
-      taskId,
-      projectId: task.projectId,
-      previousHours,
-      newHours,
-      reason,
-      reasonText,
-      changedBy: actor.id,
-      changedAt: task.updatedAt,
-    };
-    db.taskEstimateRevisions.push(revision);
-    appendAudit(db, {
-      projectId: task.projectId,
-      action: "task.estimate_changed",
-      actorId: actor.id,
-      actorName: actor.name,
-      details: {
-        taskId,
-        taskTitle: task.title,
-        revisionId: revision.id,
-        before: previousHours,
-        after: newHours,
-        reason,
-        reasonText: reasonText ?? null,
-      },
-    });
-    return { task: structuredClone(task), revision: structuredClone(revision) };
+    const revision = applyTaskEstimate(db, task, input, actor);
+    return { task: structuredClone(task), revision: revision ? structuredClone(revision) : null };
   });
 }
 
@@ -4932,4 +4954,307 @@ export async function updateProjectDates(
     });
     return structuredClone(project);
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Tâches manuelles (création, définition, suppression, duplication)   */
+/* ------------------------------------------------------------------ */
+
+const MAX_TASK_TITLE = 300;
+const MAX_TASK_DESCRIPTION = 5000;
+
+export type ManualTaskWarning = "outsidePeriod";
+
+function cleanTitle(value: string | undefined): string {
+  const title = value?.trim() ?? "";
+  if (!title) throw taskError("titleRequired");
+  if (title.length > MAX_TASK_TITLE) throw taskError("titleTooLong");
+  return title;
+}
+
+function cleanDescription(value: string | null | undefined): string | undefined {
+  const description = value?.trim() ?? "";
+  if (description.length > MAX_TASK_DESCRIPTION) throw taskError("descriptionTooLong");
+  return description || undefined;
+}
+
+function assertProjectPhase(project: Project, phase: unknown): HermesPhaseId {
+  const phases = getPhasesForApproach(project.approach).map((item) => item.id);
+  if (typeof phase !== "string" || !phases.includes(phase as HermesPhaseId)) {
+    throw taskError("invalidPhase");
+  }
+  return phase as HermesPhaseId;
+}
+
+function periodWarnings(project: Project, task: Task): ManualTaskWarning[] {
+  const start = task.startDate?.slice(0, 10);
+  const due = task.dueDate?.slice(0, 10);
+  const projectStart = project.startDate?.slice(0, 10);
+  const projectEnd = project.endDate?.slice(0, 10);
+  const outside =
+    (start && projectStart && start < projectStart) ||
+    (due && projectStart && due < projectStart) ||
+    (start && projectEnd && start > projectEnd) ||
+    (due && projectEnd && due > projectEnd);
+  return outside ? ["outsidePeriod"] : [];
+}
+
+/** Crée une tâche hors scénario HERMES (chef de projet / responsable portfolio / administrateur). */
+export async function createManualTask(
+  projectId: string,
+  input: CreateManualTaskInput,
+  actor: AuditActor,
+): Promise<{ task: Task; warnings: ManualTaskWarning[] }> {
+  return mutateDatabase((db) => {
+    const project = db.projects.find((item) => item.id === projectId);
+    if (!project) throw taskError("projectNotFound");
+    const title = cleanTitle(input.title);
+    const description = cleanDescription(input.description);
+    const phase = assertProjectPhase(project, input.phase);
+
+    let assigneeId: string | undefined;
+    if (input.assigneeId) {
+      const assignee = db.users.find((user) => user.id === input.assigneeId && isUserActive(user));
+      if (!assignee) throw taskError("invalidAssignee");
+      assigneeId = assignee.id;
+    }
+
+    const durationDays =
+      input.durationDays === null || input.durationDays === undefined ? undefined : Number(input.durationDays);
+    if (durationDays !== undefined && (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 3650)) {
+      throw taskError("invalidDuration");
+    }
+
+    const projectTasks = db.tasks.filter((item) => item.projectId === projectId);
+    const predecessorIds = [...new Set(input.predecessorIds ?? [])];
+    for (const id of predecessorIds) {
+      if (!projectTasks.some((item) => item.id === id)) throw taskError("invalidPredecessor");
+    }
+
+    const now = new Date().toISOString();
+    const module = input.module?.trim().slice(0, 120) || "";
+    const knownModule = input.moduleId
+      ? projectTasks.find((item) => item.moduleId === input.moduleId)
+      : undefined;
+    const task: Task = {
+      id: crypto.randomUUID(),
+      projectId,
+      title,
+      description,
+      module: knownModule ? knownModule.module : module,
+      moduleId: knownModule?.moduleId,
+      phase,
+      status: input.status && input.status !== "termine" ? input.status : "a_faire",
+      progress: 0,
+      order: projectTasks.reduce((max, item) => Math.max(max, item.order ?? 0), 0) + 1,
+      assigneeId,
+      startDate: input.startDate?.trim() || undefined,
+      dueDate: input.dueDate?.trim() || undefined,
+      durationDays,
+      source: "manual",
+      createdAt: now,
+      createdBy: actor.id,
+      updatedAt: now,
+    };
+    if (task.status === "en_cours") task.startedAt = now;
+    try {
+      validateScheduleDates(task.startDate, task.dueDate);
+    } catch {
+      throw taskError("invalidDates");
+    }
+    if (task.startDate && task.durationDays && !task.dueDate) {
+      task.dueDate = addWorkingDays(task.startDate, task.durationDays - 1);
+    }
+    syncTaskDurationFromDates(task);
+
+    db.tasks.push(task);
+
+    for (const predecessorId of predecessorIds) {
+      db.taskDependencies.push({
+        id: crypto.randomUUID(),
+        projectId,
+        predecessorId,
+        successorId: task.id,
+        type: "FS",
+        lagDays: 0,
+        createdAt: now,
+      });
+    }
+    if (predecessorIds.length > 0) applyScheduleRecalculation(db, projectId, predecessorIds[0]);
+
+    if (input.estimatedHours !== null && input.estimatedHours !== undefined) {
+      applyTaskEstimate(db, task, { hours: Number(input.estimatedHours) }, actor);
+    }
+
+    if (assigneeId) notifyTaskAssigned(db.notifications, db.users, project, task, assigneeId, actor.id);
+    syncProjectTaskStats(db, projectId);
+    appendAudit(db, {
+      projectId,
+      action: "task.created",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: {
+        taskId: task.id,
+        title: task.title,
+        phase: task.phase,
+        assigneeId: task.assigneeId ?? null,
+        startDate: task.startDate ?? null,
+        dueDate: task.dueDate ?? null,
+        estimatedHours: task.estimatedHours ?? null,
+        predecessorIds,
+        source: "manual",
+      },
+    });
+    return { task: structuredClone(task), warnings: periodWarnings(project, task) };
+  });
+}
+
+/** Modifie titre / description (toutes tâches), phase et module (tâches manuelles). */
+export async function updateTaskDefinition(
+  taskId: string,
+  input: UpdateTaskDefinitionInput,
+  actor: AuditActor,
+): Promise<Task> {
+  return mutateDatabase((db) => {
+    const task = db.tasks.find((item) => item.id === taskId);
+    if (!task) throw taskError("taskNotFound");
+    const project = db.projects.find((item) => item.id === task.projectId);
+    if (!project) throw taskError("projectNotFound");
+
+    const before: Record<string, unknown> = {};
+    const after: Record<string, unknown> = {};
+    const change = (key: "title" | "description" | "phase" | "module", value: unknown) => {
+      if ((task[key] ?? null) === (value ?? null)) return;
+      before[key] = task[key] ?? null;
+      after[key] = value ?? null;
+      if (value === undefined) delete task[key];
+      else (task as unknown as Record<string, unknown>)[key] = value;
+    };
+
+    if (input.title !== undefined) change("title", cleanTitle(input.title));
+    if (input.description !== undefined) change("description", cleanDescription(input.description));
+    const isManual = task.source === "manual";
+    if (input.phase !== undefined && input.phase !== task.phase) {
+      if (!isManual) throw taskError("phaseLocked");
+      change("phase", assertProjectPhase(project, input.phase));
+    }
+    if (input.module !== undefined && (input.module?.trim() ?? "") !== task.module) {
+      if (!isManual) throw taskError("phaseLocked");
+      change("module", input.module?.trim().slice(0, 120) ?? "");
+      delete task.moduleId;
+    }
+
+    if (Object.keys(after).length > 0) {
+      task.updatedAt = new Date().toISOString();
+      appendAudit(db, {
+        projectId: task.projectId,
+        action: "task.updated",
+        actorId: actor.id,
+        actorName: actor.name,
+        details: { taskId, title: task.title, before, after },
+      });
+    }
+    return structuredClone(task);
+  });
+}
+
+/**
+ * Supprime une tâche manuelle : archivée (avec activités et dépendances) dans `deletedTasks`.
+ * Les saisies de temps sont conservées ; une confirmation est exigée s'il en existe.
+ */
+export async function deleteManualTask(
+  taskId: string,
+  actor: AuditActor,
+  options: { confirmTimeEntries?: boolean } = {},
+): Promise<{ timeEntryCount: number }> {
+  return mutateDatabase((db) => {
+    const task = db.tasks.find((item) => item.id === taskId);
+    if (!task) throw taskError("taskNotFound");
+    if (task.source !== "manual") throw taskError("notManual");
+    const timeEntryCount = db.timeEntries.filter((entry) => entry.taskId === taskId && !entry.deletedAt).length;
+    if (timeEntryCount > 0 && !options.confirmTimeEntries) {
+      throw taskError("timeEntriesExist", { count: timeEntryCount });
+    }
+
+    const now = new Date().toISOString();
+    const activities = db.activities.filter((activity) => activity.taskId === taskId);
+    const dependencies = db.taskDependencies.filter(
+      (dep) => dep.predecessorId === taskId || dep.successorId === taskId,
+    );
+    db.deletedTasks.push({
+      task: structuredClone(task),
+      activities: structuredClone(activities),
+      dependencies: structuredClone(dependencies),
+      timeEntryCount,
+      deletedAt: now,
+      deletedBy: actor.id,
+    });
+    db.tasks = db.tasks.filter((item) => item.id !== taskId);
+    db.activities = db.activities.filter((activity) => activity.taskId !== taskId);
+    db.taskDependencies = db.taskDependencies.filter(
+      (dep) => dep.predecessorId !== taskId && dep.successorId !== taskId,
+    );
+    applyScheduleRecalculation(db, task.projectId);
+    syncProjectTaskStats(db, task.projectId);
+    appendAudit(db, {
+      projectId: task.projectId,
+      action: "task.deleted",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: {
+        taskId,
+        title: task.title,
+        phase: task.phase,
+        estimatedHours: task.estimatedHours ?? null,
+        activities: activities.length,
+        dependencies: dependencies.length,
+        timeEntriesKept: timeEntryCount,
+      },
+    });
+    return { timeEntryCount };
+  });
+}
+
+/** Duplique une tâche (HERMES ou manuelle) en une nouvelle tâche manuelle. */
+export async function duplicateTask(
+  taskId: string,
+  title: string,
+  actor: AuditActor,
+): Promise<Task> {
+  const source = await getTaskById(taskId);
+  if (!source) throw taskError("taskNotFound");
+  const { task } = await createManualTask(
+    source.projectId,
+    {
+      title,
+      description: source.description,
+      phase: source.phase,
+      module: source.module,
+      moduleId: source.moduleId,
+      assigneeId: source.assigneeId,
+      startDate: source.startDate,
+      dueDate: source.dueDate,
+      durationDays: source.durationDays,
+      estimatedHours: source.estimatedHours,
+    },
+    actor,
+  );
+  await appendAuditEntries([
+    {
+      projectId: source.projectId,
+      action: "task.duplicated",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: { taskId: task.id, duplicatedFrom: taskId },
+    },
+  ]);
+  return task;
+}
+
+/** Tâches supprimées (archives), pour l'affichage des saisies de temps conservées. */
+export async function listDeletedTasks(projectId?: string): Promise<Task[]> {
+  const db = await readDatabase();
+  return db.deletedTasks
+    .filter((record) => !projectId || record.task.projectId === projectId)
+    .map((record) => structuredClone(record.task));
 }

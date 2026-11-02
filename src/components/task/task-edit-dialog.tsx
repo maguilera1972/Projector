@@ -2,18 +2,24 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Play, Plus, Trash2, X } from "lucide-react";
+import { Copy, Loader2, Play, Plus, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { TaskScheduleBadge } from "@/components/task/task-schedule-badge";
 import { TaskTimeSection } from "@/components/time/task-time-section";
 import { useTimeI18n } from "@/components/time/use-time-i18n";
+import { ManualTaskBadge } from "@/components/task/manual-task-badge";
+import { useI18n } from "@/lib/i18n/client";
+import { tDynamic } from "@/lib/i18n/translate";
+import { getPhasesForApproach } from "@/lib/hermes/phases";
+import { getTaskTranslator, taskErrorMessage } from "@/lib/tasks/i18n";
 import type { TaskDetailContext } from "@/lib/tasks/access";
 import { toDateInputValue } from "@/lib/tasks/dates";
 import { formatDate } from "@/lib/utils";
 import {
   TASK_STATUS_LABELS,
   type Activity,
+  type HermesPhaseId,
   type Task,
   type TaskStatus,
 } from "@/types";
@@ -34,6 +40,9 @@ const statusOptions: TaskStatus[] = [
 export function TaskEditDialog({ taskId, open, onClose }: TaskEditDialogProps) {
   const router = useRouter();
   const { tt } = useTimeI18n();
+  const { t, locale } = useI18n();
+  const tk = getTaskTranslator(locale);
+  const [definition, setDefinition] = useState({ title: "", description: "", phase: "", module: "" });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -71,6 +80,12 @@ export function TaskEditDialog({ taskId, open, onClose }: TaskEditDialogProps) {
       }
 
       setContext(data);
+      setDefinition({
+        title: data.task.title,
+        description: data.task.description ?? "",
+        phase: data.task.phase,
+        module: data.task.module ?? "",
+      });
       setTaskComments(data.task.comments ?? "");
       setTaskStatus(data.task.status);
       setTaskProgress(data.task.progress ?? 0);
@@ -170,6 +185,89 @@ export function TaskEditDialog({ taskId, open, onClose }: TaskEditDialogProps) {
       router.refresh();
     } catch {
       setError("Erreur réseau.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveDefinition() {
+    if (!taskId || !context) return;
+    setSaving(true);
+    setError("");
+    const isManual = context.task.source === "manual";
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: definition.title,
+          description: definition.description,
+          ...(isManual ? { phase: definition.phase, module: definition.module } : {}),
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        code?: string;
+        error?: string;
+        task?: Task;
+        activities?: Activity[];
+      };
+      if (!response.ok) {
+        setError(taskErrorMessage(tk, data));
+        return;
+      }
+      if (data.task) updateContext(data.task, data.activities ?? context.activities);
+      router.refresh();
+    } catch {
+      setError(tk("errors.network"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function duplicateCurrentTask() {
+    if (!taskId || !context) return;
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "duplicate", title: `${context.task.title}${tk("copySuffix")}` }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { code?: string; error?: string };
+      if (!response.ok) {
+        setError(taskErrorMessage(tk, data));
+        return;
+      }
+      router.refresh();
+      onClose();
+    } catch {
+      setError(tk("errors.network"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteCurrentTask() {
+    if (!taskId || !window.confirm(tk("confirmDelete"))) return;
+    setSaving(true);
+    setError("");
+    try {
+      let response = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+      let data = (await response.json().catch(() => ({}))) as { code?: string; error?: string; count?: number };
+      if (response.status === 409 && data.code === "timeEntriesExist") {
+        if (!window.confirm(tk("confirmDeleteWithTime", { count: data.count ?? 0 }))) return;
+        response = await fetch(`/api/tasks/${taskId}?confirm=1`, { method: "DELETE" });
+        data = (await response.json().catch(() => ({}))) as { code?: string; error?: string };
+      }
+      if (!response.ok) {
+        setError(taskErrorMessage(tk, data));
+        return;
+      }
+      router.refresh();
+      onClose();
+    } catch {
+      setError(tk("errors.network"));
     } finally {
       setSaving(false);
     }
@@ -416,8 +514,9 @@ export function TaskEditDialog({ taskId, open, onClose }: TaskEditDialogProps) {
       <div className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">
+            <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-slate-900">
               {context?.task.title ?? "Tâche"}
+              <ManualTaskBadge source={context?.task.source} />
             </h2>
             {context && (
               <p className="mt-1 text-sm text-brand-muted">
@@ -450,6 +549,102 @@ export function TaskEditDialog({ taskId, open, onClose }: TaskEditDialogProps) {
 
           {context && !loading && (
             <div className="space-y-6">
+              {(context.permissions.canDuplicateTask || context.permissions.canDeleteTask) && (
+                <div className="flex flex-wrap justify-end gap-2">
+                  {context.permissions.canDuplicateTask && (
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => void duplicateCurrentTask()}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {tk("duplicate")}
+                    </button>
+                  )}
+                  {context.permissions.canDeleteTask && (
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => void deleteCurrentTask()}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {tk("delete")}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {context.permissions.canEditDefinition ? (
+                <section className="space-y-3 rounded-xl border border-slate-200 p-4">
+                  <h3 className="text-sm font-semibold text-slate-900">{tk("definition")}</h3>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-brand-muted">{tk("title")}</span>
+                    <input
+                      value={definition.title}
+                      maxLength={300}
+                      onChange={(e) => setDefinition({ ...definition, title: e.target.value })}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-brand-muted">{tk("description")}</span>
+                    <textarea
+                      rows={2}
+                      maxLength={5000}
+                      value={definition.description}
+                      onChange={(e) => setDefinition({ ...definition, description: e.target.value })}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  {context.task.source === "manual" ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-brand-muted">{tk("phase")}</span>
+                        <select
+                          value={definition.phase}
+                          onChange={(e) => setDefinition({ ...definition, phase: e.target.value as HermesPhaseId })}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                        >
+                          {getPhasesForApproach(context.project.approach).map((phase) => (
+                            <option key={phase.id} value={phase.id}>
+                              {tDynamic(t, `enums.phase.${phase.id}`)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-brand-muted">{tk("module")}</span>
+                        <input
+                          value={definition.module}
+                          maxLength={120}
+                          onChange={(e) => setDefinition({ ...definition, module: e.target.value })}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-brand-muted">{tk("phaseLocked")}</p>
+                  )}
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={saving || !definition.title.trim()}
+                      onClick={() => void saveDefinition()}
+                      className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    >
+                      {tk("saveDefinition")}
+                    </button>
+                  </div>
+                </section>
+              ) : (
+                context.task.description && (
+                  <p className="whitespace-pre-line rounded-xl border border-slate-200 p-4 text-sm text-slate-700">
+                    {context.task.description}
+                  </p>
+                )
+              )}
               <section className="rounded-xl border border-slate-200 p-4">
                 <div className="mb-4 flex flex-wrap items-center gap-2">
                   <Badge variant="muted">{TASK_STATUS_LABELS[context.task.status]}</Badge>

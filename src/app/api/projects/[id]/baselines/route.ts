@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
-import { canUserAssignTasksOnProject } from "@/lib/auth/task-assignment";
+import { canUserManageProjectTasks } from "@/lib/auth/task-assignment";
 import {
   createProjectBaseline,
   getPortfolioById,
@@ -47,7 +47,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     ? await getPortfolioById(project.portfolioId)
     : undefined;
 
-  if (!canUserAssignTasksOnProject(user, project, portfolio)) {
+  if (!canUserManageProjectTasks(user, project, portfolio)) {
     return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
   }
 

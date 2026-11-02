@@ -1,4 +1,5 @@
 import type { SessionUser } from "@/lib/auth/permissions";
+import { isPlatformAdmin } from "@/lib/hermes/project-roles";
 import type { Portfolio, Project } from "@/types";
 
 type UserRef = Pick<SessionUser, "id" | "name" | "email">;
@@ -38,7 +39,18 @@ export function canUserAssignTasksOnProject(
   return false;
 }
 
-export const canUserManageTasksOnProject = canUserAssignTasksOnProject;
+/**
+ * Gestion complète des tâches d'un projet (création, fiche tâche, assignation, dépendances) :
+ * chef de projet, responsable du portfolio, ou administrateur (jamais un invité externe).
+ */
+export function canUserManageProjectTasks(
+  user: UserRef & Pick<SessionUser, "role" | "permissions">,
+  project: Project,
+  portfolio?: Portfolio | null,
+): boolean {
+  if (user.role !== "guest" && isPlatformAdmin(user)) return true;
+  return canUserAssignTasksOnProject(user, project, portfolio);
+}
 
 export function canUserWorkOnTask(
   user: UserRef,
@@ -72,7 +84,7 @@ export function canUserAddActivities(
 }
 
 export function buildProjectAssignmentAccess(
-  user: UserRef,
+  user: UserRef & Pick<SessionUser, "role" | "permissions">,
   projects: Project[],
   portfolios: Portfolio[],
 ): Record<string, boolean> {
@@ -86,7 +98,7 @@ export function buildProjectAssignmentAccess(
 
       return [
         project.id,
-        canUserAssignTasksOnProject(user, project, portfolio),
+        canUserManageProjectTasks(user, project, portfolio),
       ];
     }),
   );

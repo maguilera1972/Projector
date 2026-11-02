@@ -1,6 +1,5 @@
 import type { SessionUser } from "@/lib/auth/permissions";
-import { canUserAssignTasksOnProject, canUserWorkOnTask } from "@/lib/auth/task-assignment";
-import { isPlatformAdmin } from "@/lib/hermes/project-roles";
+import { canUserManageProjectTasks, canUserWorkOnTask } from "@/lib/auth/task-assignment";
 import type { Activity, Portfolio, Project, Task, TimeEntry } from "@/types";
 
 /**
@@ -19,7 +18,7 @@ export function isTimeManager(
   project: Project,
   portfolio?: Portfolio | null,
 ): boolean {
-  return isPlatformAdmin(user) || canUserAssignTasksOnProject(user, project, portfolio);
+  return canUserManageProjectTasks(user, project, portfolio);
 }
 
 export function getTimeAccess(

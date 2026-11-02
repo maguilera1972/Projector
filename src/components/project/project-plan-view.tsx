@@ -6,6 +6,7 @@ import { ProjectBaselinesToolbar } from "@/components/project/project-baselines-
 import { ProjectGanttChart } from "@/components/project/project-gantt-chart";
 import { ProjectSchedulePanel } from "@/components/project/project-schedule-panel";
 import { ProjectTasksTableView } from "@/components/project/project-tasks-table-view";
+import { NewTaskButton, type CreateTaskProject } from "@/components/task/create-task-dialog";
 import type { AssigneeOption } from "@/lib/users";
 import type {
   HermesApproach,
@@ -26,6 +27,8 @@ interface ProjectPlanViewProps {
   baselines: ProjectBaseline[];
   timeByTask?: Record<string, number>;
   canLogTaskIds?: string[];
+  /** Renseigné si l'utilisateur peut créer des tâches dans ce projet. */
+  createTaskProject?: CreateTaskProject;
 }
 
 const tabs: { id: PlanTab; label: string; icon: typeof List }[] = [
@@ -44,6 +47,7 @@ export function ProjectPlanView({
   baselines,
   timeByTask,
   canLogTaskIds,
+  createTaskProject,
 }: ProjectPlanViewProps) {
   const [activeTab, setActiveTab] = useState<PlanTab>("gantt");
   const [selectedBaselineId, setSelectedBaselineId] = useState<string | null>(
@@ -57,12 +61,28 @@ export function ProjectPlanView({
 
   return (
     <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900">Plan du projet</h2>
-        <p className="mt-1 text-sm text-brand-muted">
-          Vues Gantt et tâches, comparaison avec les baselines et suivi des
-          écarts planifié / réel.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Plan du projet</h2>
+          <p className="mt-1 text-sm text-brand-muted">
+            Vues Gantt et tâches, comparaison avec les baselines et suivi des
+            écarts planifié / réel.
+          </p>
+        </div>
+        {createTaskProject && (
+          <NewTaskButton
+            projects={[createTaskProject]}
+            defaultProjectId={createTaskProject.id}
+            users={users}
+            tasks={tasks.map((task) => ({
+              id: task.id,
+              title: task.title,
+              projectId: task.projectId,
+              module: task.module,
+              moduleId: task.moduleId,
+            }))}
+          />
+        )}
       </div>
 
       <ProjectBaselinesToolbar

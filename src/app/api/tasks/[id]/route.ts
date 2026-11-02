@@ -2,13 +2,19 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { getTaskDetailContext } from "@/lib/tasks/access";
 import {
+  deleteManualTask,
+  duplicateTask,
   getActivitiesByTaskId,
   getTaskById,
   startTask,
   updateTaskAssignee,
+  updateTaskDefinition,
   updateTaskFields,
 } from "@/lib/db/store";
-import type { UpdateTaskInput } from "@/types";
+import { taskErrorResponse, taskExceptionResponse } from "@/lib/tasks/http";
+import type { HermesPhaseId, Task, UpdateTaskDefinitionInput, UpdateTaskInput } from "@/types";
+
+const DEFINITION_KEYS = ["title", "description", "phase", "module"] as const;
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -50,7 +56,22 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   try {
     const body = (await request.json()) as UpdateTaskInput & {
       assigneeId?: string | null;
+      title?: string;
+      description?: string | null;
+      phase?: HermesPhaseId;
+      module?: string | null;
     };
+
+    let definitionTask: Task | undefined;
+    if (DEFINITION_KEYS.some((key) => key in body)) {
+      if (!context.permissions.canEditDefinition) return taskErrorResponse("forbidden");
+      const definition: UpdateTaskDefinitionInput = {};
+      if (typeof body.title === "string") definition.title = body.title;
+      if ("description" in body) definition.description = body.description ?? null;
+      if (typeof body.phase === "string") definition.phase = body.phase;
+      if ("module" in body) definition.module = body.module ?? null;
+      definitionTask = await updateTaskDefinition(id, definition, { id: user.id, name: user.name });
+    }
 
     if ("assigneeId" in body) {
       if (!context.permissions.canManage) {
@@ -75,6 +96,11 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       "startDate" in body ||
       "dueDate" in body ||
       "durationDays" in body;
+
+    if (!hasTaskFieldUpdate && definitionTask) {
+      const activities = await getActivitiesByTaskId(id);
+      return NextResponse.json({ task: definitionTask, activities });
+    }
 
     if (!hasTaskFieldUpdate) {
       return NextResponse.json(
@@ -126,9 +152,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     const activities = await getActivitiesByTaskId(id);
     return NextResponse.json({ task: updated, activities });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Mise à jour impossible.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return taskExceptionResponse(error, "Mise à jour impossible.");
   }
 }
 
@@ -146,7 +170,17 @@ export async function POST(request: Request, { params }: RouteParams) {
   }
 
   try {
-    const body = (await request.json()) as { action?: string };
+    const body = (await request.json()) as { action?: string; title?: string };
+
+    if (body.action === "duplicate") {
+      if (!context.permissions.canDuplicateTask) return taskErrorResponse("forbidden");
+      const title =
+        typeof body.title === "string" && body.title.trim()
+          ? body.title
+          : `${context.task.title} (copie)`;
+      const task = await duplicateTask(id, title, { id: user.id, name: user.name });
+      return NextResponse.json({ task }, { status: 201 });
+    }
 
     if (body.action !== "start") {
       return NextResponse.json({ error: "Action non reconnue." }, { status: 400 });
@@ -161,8 +195,25 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     return NextResponse.json({ task, activities });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Démarrage impossible.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return taskExceptionResponse(error, "Action impossible.");
+  }
+}
+
+/** Supprime (archive) une tâche manuelle ; `?confirm=1` requis si du temps a été saisi. */
+export async function DELETE(request: Request, { params }: RouteParams) {
+  const user = await getSessionUser();
+  if (!user) return taskErrorResponse("unauthenticated");
+
+  const { id } = await params;
+  const context = await getTaskDetailContext(id, user);
+  if (!context) return taskErrorResponse("taskNotFound");
+  if (!context.permissions.canManage) return taskErrorResponse("forbidden");
+
+  try {
+    const confirm = new URL(request.url).searchParams.get("confirm") === "1";
+    const result = await deleteManualTask(id, { id: user.id, name: user.name }, { confirmTimeEntries: confirm });
+    return NextResponse.json({ success: true, ...result });
+  } catch (error) {
+    return taskExceptionResponse(error, "Suppression impossible.");
   }
 }

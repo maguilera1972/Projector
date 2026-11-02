@@ -30,7 +30,7 @@ import {
   isPlatformAdmin,
 } from "@/lib/hermes/project-roles";
 import { getSessionUser } from "@/lib/auth/session";
-import { canUserAssignTasksOnProject } from "@/lib/auth/task-assignment";
+import { canUserManageProjectTasks } from "@/lib/auth/task-assignment";
 import { formatDate } from "@/lib/utils";
 import { localizeScenario, localizeTasks } from "@/lib/hermes/i18n";
 import { toAssigneeOptions } from "@/lib/users";
@@ -122,7 +122,7 @@ export default async function ProjectDetailPage({
   const portfolio = project.portfolioId
     ? await getPortfolioById(project.portfolioId)
     : undefined;
-  const canAssign = canUserAssignTasksOnProject(user, project, portfolio);
+  const canAssign = canUserManageProjectTasks(user, project, portfolio);
   const canSubmitPhase = canUserActAsChefDeProjet(user, project, portfolio);
   const canApproveAsMandant = canUserActAsMandant(user, project);
   const phaseLabel = tDynamic(t, `enums.phase.${project.currentPhase}`);
@@ -230,6 +230,18 @@ export default async function ProjectDetailPage({
               baselines={baselines}
               timeByTask={timeIndex.timeByTask}
               canLogTaskIds={timeIndex.canLogTaskIds}
+              createTaskProject={
+                canAssign
+                  ? {
+                      id: project.id,
+                      name: project.name,
+                      approach: project.approach,
+                      currentPhase: project.currentPhase,
+                      startDate: project.startDate,
+                      endDate: project.endDate,
+                    }
+                  : undefined
+              }
             />
 
             {canSeeTimeAnalysis && (

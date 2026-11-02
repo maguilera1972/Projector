@@ -6,6 +6,7 @@ import {
   getTaskById,
   listActivities,
   listAllUsers,
+  listDeletedTasks,
   listPortfolios,
   listProjects,
   listTasks,
@@ -215,13 +216,15 @@ export async function listVisibleTimeEntries(
   user: SessionUser,
   query: TimeEntryFilter,
 ): Promise<TimeEntryView[]> {
-  const [entries, projects, portfolios, tasks, allUsers] = await Promise.all([
+  const [entries, projects, portfolios, activeTasks, deletedTasks, allUsers] = await Promise.all([
     listTimeEntries(query),
     listProjects(),
     listPortfolios(true),
     listTasks(),
+    listDeletedTasks(),
     listAllUsers(),
   ]);
+  const tasks = [...deletedTasks, ...activeTasks];
   const portfolioById = new Map(portfolios.map((portfolio) => [portfolio.id, portfolio]));
   const projectById = new Map(projects.map((project) => [project.id, project]));
   const taskById = new Map(tasks.map((task) => [task.id, task]));

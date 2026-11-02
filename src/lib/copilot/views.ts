@@ -62,6 +62,8 @@ export function taskView(ctx: ViewContext, task: Task, project: Project) {
     dueDate: task.dueDate?.slice(0, 10) ?? null,
     overdue: isTaskOverdue(task, kit.today),
     assignee: person(ctx, task.assigneeId),
+    source: task.source ?? "hermes",
+    description: task.description ?? null,
     plannedHours: task.estimatedHours ?? null,
     initialPlannedHours: task.initialEstimatedHours ?? null,
     timeSpentHours: minutesToHours(ctx.minutesByTask?.get(task.id) ?? 0),

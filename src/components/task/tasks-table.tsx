@@ -5,6 +5,7 @@ import { Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TaskAssigneeSelect } from "@/components/task/task-assignee-select";
 import { TaskEditDialog } from "@/components/task/task-edit-dialog";
+import { ManualTaskBadge } from "@/components/task/manual-task-badge";
 import { TaskScheduleBadge } from "@/components/task/task-schedule-badge";
 import { QuickTimeDialog } from "@/components/time/quick-time-dialog";
 import { TaskTimeCell } from "@/components/time/task-time-cell";
@@ -86,6 +87,7 @@ export function TasksTable({
                       className="group inline-flex items-center gap-2 hover:text-brand-indigo"
                     >
                       {task.title}
+                      <ManualTaskBadge source={task.source} />
                       <Pencil className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
                     </button>
                   </td>
@@ -93,7 +95,7 @@ export function TasksTable({
                     {project?.name ?? "—"}
                   </td>
                   <td className="px-6 py-4">
-                    <Badge variant="muted">{task.module}</Badge>
+                    {task.module ? <Badge variant="muted">{task.module}</Badge> : "—"}
                   </td>
                   <td className="px-6 py-4 text-brand-muted">{phaseLabel}</td>
                   <td className="px-6 py-4">

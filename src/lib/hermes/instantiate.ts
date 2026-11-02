@@ -32,5 +32,6 @@ function taskFromTemplate(
     templateId: template.id,
     order: template.order,
     progress: 0,
+    source: "hermes",
   };
 }

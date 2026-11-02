@@ -5,6 +5,7 @@ import { Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TaskAssigneeSelect } from "@/components/task/task-assignee-select";
 import { TaskEditDialog } from "@/components/task/task-edit-dialog";
+import { ManualTaskBadge } from "@/components/task/manual-task-badge";
 import { TaskScheduleBadge } from "@/components/task/task-schedule-badge";
 import { QuickTimeDialog } from "@/components/time/quick-time-dialog";
 import { TaskTimeCell } from "@/components/time/task-time-cell";
@@ -126,6 +127,7 @@ export function ProjectTasksTableView({
                       className="group inline-flex items-center gap-2 text-left hover:text-brand-indigo"
                     >
                       {task.title}
+                      <ManualTaskBadge source={task.source} />
                       {criticalSet.has(task.id) && (
                         <Badge variant="warning">Critique</Badge>
                       )}
@@ -134,7 +136,7 @@ export function ProjectTasksTableView({
                   </td>
                   <td className="px-4 py-3 text-brand-muted">{phaseLabel}</td>
                   <td className="px-4 py-3">
-                    <Badge variant="muted">{task.module}</Badge>
+                    {task.module ? <Badge variant="muted">{task.module}</Badge> : "—"}
                   </td>
                   <td className="px-4 py-3 text-brand-muted">
                     {task.startDate ? formatDate(task.startDate) : "—"}

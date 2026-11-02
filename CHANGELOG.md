@@ -9,6 +9,17 @@ Les nouvelles entrées s'ajoutent **en haut**, juste sous ce paragraphe.
 
 ## 2026-11-02
 
+### Ajouté (tâches manuelles)
+
+- Création manuelle de tâches (chef de projet, responsable du portfolio, administrateur) via « Nouvelle tâche » sur la page projet et la page Tâches : titre, description, phase HERMES du projet, module libre ou existant, responsable (notifié par e-mail / Teams selon ses préférences), statut initial, dates (avertissement si hors période du projet), durée, charge prévue (devient la charge initiale) et prédécesseurs fin → début (planning recalculé).
+- Tâches marquées `source: "manual"` (les tâches du scénario sont `hermes`, migration automatique) avec une pastille « Manuelle » dans les listes ; exposé aussi dans l'API Copilot (`source`, `description`, spécification OpenAPI).
+- Fiche tâche : section « Définition » (titre et description modifiables pour toutes les tâches, phase et module pour les tâches manuelles), duplication d'une tâche (copie manuelle), suppression des tâches manuelles avec archivage (activités et dépendances conservées dans l'historique) ; si du temps a été saisi, confirmation requise et saisies conservées.
+- Journal d'audit : `task.created`, `task.updated`, `task.duplicated`, `task.deleted` ; libellés en 5 langues.
+
+### Modifié
+
+- Les administrateurs ouvrent la fiche tâche complète de toute tâche avec les mêmes droits que le chef de projet (assignation, dates, activités, dépendances, baselines, charges) ; les invités externes n'obtiennent aucun droit supplémentaire.
+
 ### Ajouté (suivi du temps, charges prévues, période du projet)
 
 - Suivi du temps passé par tâche : saisies `{date, durée, commentaire}` stockées en base (migration automatique), formats acceptés `1h30`, `1.5`, `90m`, `1:30` ; durée > 0 et ≤ 24 h, date future refusée (tolérance d'un jour), avertissement non bloquant au-delà de 10 h par jour et par personne.

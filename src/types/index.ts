@@ -146,6 +146,46 @@ export interface Task {
   estimatedHours?: number;
   /** Charge prévue initiale (première valeur fixée) : référence des écarts d'estimation. */
   initialEstimatedHours?: number;
+  /** Origine : instanciée depuis le scénario HERMES ou créée manuellement. */
+  source?: TaskSource;
+  description?: string;
+  createdAt?: string;
+  createdBy?: string;
+}
+
+export type TaskSource = "hermes" | "manual";
+
+/** Tâche manuelle supprimée : archivée avec ses activités et dépendances (historique). */
+export interface DeletedTaskRecord {
+  task: Task;
+  activities: Activity[];
+  dependencies: TaskDependency[];
+  /** Saisies de temps actives au moment de la suppression (conservées). */
+  timeEntryCount: number;
+  deletedAt: string;
+  deletedBy: string;
+}
+
+export interface CreateManualTaskInput {
+  title: string;
+  description?: string;
+  phase: HermesPhaseId;
+  module?: string;
+  moduleId?: string;
+  assigneeId?: string | null;
+  startDate?: string | null;
+  dueDate?: string | null;
+  durationDays?: number | null;
+  estimatedHours?: number | null;
+  status?: TaskStatus;
+  predecessorIds?: string[];
+}
+
+export interface UpdateTaskDefinitionInput {
+  title?: string;
+  description?: string | null;
+  phase?: HermesPhaseId;
+  module?: string | null;
 }
 
 export type EstimateRevisionReason =

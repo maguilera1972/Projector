@@ -7,13 +7,13 @@ import {
 } from "@/lib/db/store";
 import {
   canUserAddActivities,
-  canUserAssignTasksOnProject,
+  canUserManageProjectTasks,
   canUserEditActivity,
   canUserWorkOnTask,
 } from "@/lib/auth/task-assignment";
 import { toAssigneeOptions } from "@/lib/users";
 import type { SessionUser } from "@/lib/auth/permissions";
-import type { Activity, Task } from "@/types";
+import type { Activity, HermesApproach, HermesPhaseId, Task } from "@/types";
 
 export interface TaskAccessPermissions {
   canManage: boolean;
@@ -23,6 +23,19 @@ export interface TaskAccessPermissions {
   canEditSchedule: boolean;
   canStartTask: boolean;
   canDeleteActivities: boolean;
+  /** Titre / description (et phase / module pour une tâche manuelle). */
+  canEditDefinition: boolean;
+  canDeleteTask: boolean;
+  canDuplicateTask: boolean;
+}
+
+export interface TaskProjectInfo {
+  id: string;
+  name: string;
+  approach: HermesApproach;
+  currentPhase: HermesPhaseId;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface TaskDetailContext {
@@ -31,6 +44,7 @@ export interface TaskDetailContext {
   users: ReturnType<typeof toAssigneeOptions>;
   permissions: TaskAccessPermissions;
   currentUserId: string;
+  project: TaskProjectInfo;
 }
 
 export async function getTaskDetailContext(
@@ -49,7 +63,7 @@ export async function getTaskDetailContext(
 
   const activities = await getActivitiesByTaskId(taskId);
   const users = toAssigneeOptions(await listUsers());
-  const canManage = canUserAssignTasksOnProject(user, project, portfolio);
+  const canManage = canUserManageProjectTasks(user, project, portfolio);
   const canWork = canManage || canUserWorkOnTask(user, task, activities);
   const canAddActivities = canUserAddActivities(user, task, canManage);
   const isTaskAssignee = task.assigneeId === user.id;
@@ -67,6 +81,14 @@ export async function getTaskDetailContext(
     activities,
     users,
     currentUserId: user.id,
+    project: {
+      id: project.id,
+      name: project.name,
+      approach: project.approach,
+      currentPhase: project.currentPhase,
+      startDate: project.startDate,
+      endDate: project.endDate,
+    },
     permissions: {
       canManage,
       canWork,
@@ -75,6 +97,9 @@ export async function getTaskDetailContext(
       canEditSchedule,
       canStartTask,
       canDeleteActivities: canManage,
+      canEditDefinition: canManage,
+      canDeleteTask: canManage && task.source === "manual",
+      canDuplicateTask: canManage,
     },
   };
 }

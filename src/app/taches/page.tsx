@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { TasksTable } from "@/components/task/tasks-table";
+import { NewTaskButton } from "@/components/task/create-task-dialog";
 import { WeeklyTimesheet } from "@/components/time/weekly-timesheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import { listPortfolios, listProjects, listTasks, listUsers } from "@/lib/db/store";
@@ -70,6 +71,17 @@ export default async function TachesPage({ searchParams }: TachesPageProps) {
     portfolios,
   );
   const timeIndex = await buildTaskTimeIndex(user, tasks);
+  const manageableProjects = projects
+    .filter((project) => canAssignByProjectId[project.id])
+    .sort((a, b) => a.name.localeCompare(b.name, locale))
+    .map((project) => ({
+      id: project.id,
+      name: project.name,
+      approach: project.approach,
+      currentPhase: project.currentPhase,
+      startDate: project.startDate,
+      endDate: project.endDate,
+    }));
 
   return (
     <>
@@ -80,6 +92,19 @@ export default async function TachesPage({ searchParams }: TachesPageProps) {
       />
 
       <main className="p-8">
+        <div className="mb-3 flex justify-end empty:hidden">
+          <NewTaskButton
+            projects={manageableProjects}
+            users={users}
+            tasks={tasks.map((task) => ({
+              id: task.id,
+              title: task.title,
+              projectId: task.projectId,
+              module: task.module,
+              moduleId: task.moduleId,
+            }))}
+          />
+        </div>
         {tabs}
         {tasks.length === 0 ? (
           <EmptyState
