@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getIntegrationSettings, setProjectTeamsWorkspace } from "@/lib/db/store";
 import { checkFeature } from "@/lib/integrations/capabilities";
-import { graphFailure, jsonError, requireProjectManager } from "@/lib/integrations/http";
+import { graphFailure, jsonError, requireProjectManager, HTTP_FEATURE_UNAVAILABLE } from "@/lib/integrations/http";
 import { planSharePointSync } from "@/lib/teams/sharepoint";
 import { provisionWorkspace, type ProvisionOptions } from "@/lib/teams/workspace";
 
@@ -42,7 +42,7 @@ export async function POST(request: Request, { params }: RouteParams) {
   const settings = await getIntegrationSettings();
   if (!body.dryRun) {
     const check = await checkFeature("workspaces", settings);
-    if (!check.ok) return jsonError(it("workspace.unavailable", { reason: check.message }), 503);
+    if (!check.ok) return jsonError(it("workspace.unavailable", { reason: check.message }), HTTP_FEATURE_UNAVAILABLE);
   }
 
   try {

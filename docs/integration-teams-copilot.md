@@ -464,6 +464,15 @@ Type : **A** = application (client credentials), **D** = déléguée.
 | `Projector.Read.All` / `Projector.ReadWrite.All` | A (rôles d'app) | **À créer** | API Copilot | Démons / intégrations ; lecture seule appliquée côté serveur |
 | Bot Framework (`https://api.botframework.com/.default`) | Jeton client | Vérifié | Lot 3 | Réponses et messages proactifs du bot |
 
+> **Vérification des permissions** — le panneau d'administration lit le claim `roles` d'un jeton
+> d'application réutilisé au plus 10 minutes ; « Revérifier les permissions » demande immédiatement un
+> nouveau jeton (indispensable juste après un consentement administrateur) et confirme les capacités par
+> des appels Graph réels en lecture seule. Les permissions équivalentes ou plus larges sont acceptées
+> (ex. `TeamsTab.ReadWriteForTeam.All` pour `TeamsTab.Create`, `TeamsAppInstallation.ReadWriteSelfForTeam.All`
+> pour `TeamsAppInstallation.ReadWriteForTeam.All`, `Sites.ReadWrite.All` pour `Sites.Selected`).
+> Les routes appelées par le navigateur ne renvoient jamais 502/504 (Cloudflare en remplace le corps) :
+> 424 pour un échec Graph, 409 pour une fonctionnalité indisponible.
+
 ## 7. Sécurité
 
 ### 7.1 Validation des jetons du bot (Bot Framework)

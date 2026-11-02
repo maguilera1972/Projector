@@ -17,7 +17,7 @@ const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function snapshot(force: boolean) {
   const settings = await getIntegrationSettings();
   const [capabilities, conversations] = await Promise.all([
-    getCapabilityReport(settings, { force }),
+    getCapabilityReport(settings, { force, probes: true }),
     listTeamsConversations(),
   ]);
   return {

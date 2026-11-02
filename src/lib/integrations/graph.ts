@@ -31,15 +31,22 @@ export class NotConfiguredError extends Error {
   }
 }
 
+/**
+ * Durée maximale de réutilisation d'un jeton d'application : un consentement administrateur ajouté
+ * après l'émission du jeton n'y figure pas ; un jeton récent reflète donc rapidement les permissions.
+ */
+const TOKEN_MAX_REUSE_MS = 10 * 60_000;
+
 /** Jeton d'application pour une ressource (Graph par défaut, Bot Framework…). */
 export async function getAppToken(
   scope = GRAPH_SCOPE,
   credentials: AppCredentials | null = getAppCredentials(),
+  options: { forceRefresh?: boolean } = {},
 ): Promise<string> {
   if (!credentials) throw new NotConfiguredError();
   const key = `${credentials.tenantId}:${credentials.clientId}:${scope}`;
   const cached = tokenCache.get(key);
-  if (cached && cached.expiresAt > Date.now() + 60_000) return cached.value;
+  if (!options.forceRefresh && cached && cached.expiresAt > Date.now() + 60_000) return cached.value;
 
   const response = await fetch(
     `https://login.microsoftonline.com/${encodeURIComponent(credentials.tenantId)}/oauth2/v2.0/token`,
@@ -70,7 +77,7 @@ export async function getAppToken(
   }
   tokenCache.set(key, {
     value: data.access_token,
-    expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000,
+    expiresAt: Date.now() + Math.min((data.expires_in ?? 3600) * 1000, TOKEN_MAX_REUSE_MS),
   });
   return data.access_token;
 }
@@ -85,15 +92,40 @@ export function decodeJwtPayload<T = Record<string, unknown>>(token: string): T 
   }
 }
 
-let rolesCache: { roles: string[]; fetchedAt: number } | null = null;
+export interface AppTokenInfo {
+  roles: string[];
+  appId?: string;
+  /** Émission / expiration du jeton (claims iat / exp). */
+  issuedAt?: string;
+  expiresAt?: string;
+  /** Date à laquelle PROJECTOR a lu ce jeton. */
+  checkedAt: string;
+}
+
+let tokenInfoCache: { info: AppTokenInfo; at: number } | null = null;
+
+/**
+ * Permissions d'application (claim `roles`) du jeton Graph. `force` demande un nouveau jeton à Entra
+ * (prise en compte immédiate d'un consentement administrateur récent).
+ */
+export async function getAppTokenInfo(force = false): Promise<AppTokenInfo> {
+  if (!force && tokenInfoCache && Date.now() - tokenInfoCache.at < 5 * 60_000) return tokenInfoCache.info;
+  const token = await getAppToken(GRAPH_SCOPE, getAppCredentials(), { forceRefresh: force });
+  const claims = decodeJwtPayload<{ roles?: string[]; appid?: string; iat?: number; exp?: number }>(token);
+  const info: AppTokenInfo = {
+    roles: [...(claims?.roles ?? [])].sort(),
+    appId: claims?.appid,
+    issuedAt: claims?.iat ? new Date(claims.iat * 1000).toISOString() : undefined,
+    expiresAt: claims?.exp ? new Date(claims.exp * 1000).toISOString() : undefined,
+    checkedAt: new Date().toISOString(),
+  };
+  tokenInfoCache = { info, at: Date.now() };
+  return info;
+}
 
 /** Rôles d'application (permissions Graph consenties) présents dans le jeton. */
 export async function getAppTokenRoles(force = false): Promise<string[]> {
-  if (!force && rolesCache && Date.now() - rolesCache.fetchedAt < 600_000) return rolesCache.roles;
-  const token = await getAppToken();
-  const roles = decodeJwtPayload<{ roles?: string[] }>(token)?.roles ?? [];
-  rolesCache = { roles, fetchedAt: Date.now() };
-  return roles;
+  return (await getAppTokenInfo(force)).roles;
 }
 
 export interface GraphResponse<T> {

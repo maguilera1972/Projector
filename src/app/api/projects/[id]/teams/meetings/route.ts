@@ -10,7 +10,7 @@ import {
 } from "@/lib/db/store";
 import { checkFeature } from "@/lib/integrations/capabilities";
 import { getDefaultMeetingOrganizer } from "@/lib/integrations/config";
-import { graphFailure, jsonError, requireActor, requireProjectManager } from "@/lib/integrations/http";
+import { graphFailure, jsonError, requireActor, requireProjectManager, HTTP_FEATURE_UNAVAILABLE } from "@/lib/integrations/http";
 import { createTeamsMeeting, needsDecisionPrompt } from "@/lib/teams/meetings";
 import { decisionMakers, resolveProjectTeam } from "@/lib/teams/project-team";
 import type { HermesPhaseId, TeamsMeetingAttendee, TeamsMeetingKind } from "@/types";
@@ -62,7 +62,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
   const settings = await getIntegrationSettings();
   const check = await checkFeature("meetings", settings);
-  if (!check.ok) return jsonError(it("meetings.unavailable", { reason: check.message }), 503);
+  if (!check.ok) return jsonError(it("meetings.unavailable", { reason: check.message }), HTTP_FEATURE_UNAVAILABLE);
 
   const body = (await request.json().catch(() => null)) as {
     kind?: TeamsMeetingKind;

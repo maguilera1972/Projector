@@ -12,6 +12,7 @@ import {
   graphRequest,
   odataString,
 } from "@/lib/integrations/graph";
+import { FEATURE_REQUIREMENTS } from "@/lib/integrations/capabilities";
 import { renderNotification } from "@/lib/notifications/render";
 import type { IntegrationSettings, Notification } from "@/types";
 
@@ -105,7 +106,8 @@ export async function sendTeamsActivity(
     } catch (error) {
       if (!isNotInstalledError(error)) throw error;
       const catalogId = settings?.teamsAppCatalogId ?? getTeamsAppCatalogIdFromEnv();
-      if (!catalogId || !roles.includes("TeamsAppInstallation.ReadWriteSelfForUser.All")) {
+      const canInstall = FEATURE_REQUIREMENTS.activityFeed.optional[0].some((role) => roles.includes(role));
+      if (!catalogId || !canInstall) {
         return { ok: false, reason: "not_installed", error: describeError(error) };
       }
       await installPersonalApp(userOid, catalogId);

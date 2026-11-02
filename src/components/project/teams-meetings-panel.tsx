@@ -6,6 +6,7 @@ import { useI18n } from "@/lib/i18n/client";
 import { toIntlLocale } from "@/lib/i18n/config";
 import { tDynamic } from "@/lib/i18n/translate";
 import { getIntegrationTranslator } from "@/lib/integrations/i18n";
+import { readApiResponse } from "@/lib/integrations/client-response";
 import type { HermesPhaseId, TeamsMeeting, TeamsMeetingKind } from "@/types";
 
 interface TeamMember {
@@ -78,10 +79,12 @@ export function TeamsMeetingsPanel({ projectId, currentPhase, canSchedule }: Tea
     setFeedback(null);
     try {
       const response = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
-      const payload = (await response.json().catch(() => ({}))) as { message?: string; error?: string };
+      const result = await readApiResponse<{ message?: string }>(response);
       setFeedback({
-        ok: response.ok,
-        text: response.ok ? (payload.message ?? "") : (payload.error ?? t("common.unknownError")),
+        ok: result.ok,
+        text: result.ok
+          ? (result.data.message ?? "")
+          : it("admin.actionFailed", { status: result.status, error: result.error ?? t("common.unknownError") }),
       });
       if (response.ok) await load();
       return response.ok;

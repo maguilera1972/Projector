@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getIntegrationSettings, updateIntegrationSettings } from "@/lib/db/store";
 import { describeError } from "@/lib/integrations/graph";
-import { graphFailure, jsonError, requireAdmin } from "@/lib/integrations/http";
+import { graphFailure, HTTP_UPSTREAM_FAILED, jsonError, requireAdmin } from "@/lib/integrations/http";
 import { findPersonalInstallation, sendTeamsActivity } from "@/lib/teams/activity";
 import { cancelTeamsMeeting, createTeamsMeeting } from "@/lib/teams/meetings";
 import type { Project } from "@/types";
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
         settings,
       );
       if (!result.ok) {
-        return NextResponse.json({ ok: false, reason: result.reason, error: result.error }, { status: 502 });
+        return NextResponse.json({ ok: false, reason: result.reason, error: result.error }, { status: HTTP_UPSTREAM_FAILED });
       }
       return NextResponse.json({ ok: true, installedNow: result.installedNow ?? false });
     }

@@ -28,7 +28,7 @@ export interface ConnectorSyncReport extends GraphConnectorSyncResult {
 
 export type ConnectorActionResult =
   | { ok: true; state: GraphConnectorState; message: string; sync?: ConnectorSyncReport }
-  | { ok: false; status: 400 | 409 | 502 | 503; error: string; state: GraphConnectorState };
+  | { ok: false; status: 400 | 409 | 424; error: string; state: GraphConnectorState };
 
 export interface ConnectorStatus {
   connectionId: string;
@@ -221,7 +221,7 @@ export async function refreshSchemaStatus(): Promise<GraphConnectorState> {
 }
 
 function capabilityError(check: Exclude<FeatureCheck, { ok: true }>, state: GraphConnectorState): ConnectorActionResult {
-  return { ok: false, status: 503, error: check.message, state };
+  return { ok: false, status: 409, error: check.message, state };
 }
 
 /** Connexion + schéma (autorisé même si la fonctionnalité n'est pas encore activée). */
@@ -239,13 +239,13 @@ export async function setupConnector(): Promise<ConnectorActionResult> {
         : "schéma en cours d'enregistrement (quelques minutes) : actualisez le statut avant de synchroniser.";
     return { ok: true, state, message: `${connectionText} (${getConnectorId()}), ${schemaText}` };
   } catch (error) {
-    return { ok: false, status: 502, error: describeError(error), state: await readState() };
+    return { ok: false, status: 424, error: describeError(error), state: await readState() };
   }
 }
 
 export async function refreshConnectorSchema(): Promise<ConnectorActionResult> {
   if (!getAppCredentials()) {
-    return { ok: false, status: 503, error: "Microsoft Graph non configuré.", state: await readState() };
+    return { ok: false, status: 409, error: "Microsoft Graph non configuré.", state: await readState() };
   }
   try {
     const state = await refreshSchemaStatus();
@@ -257,14 +257,14 @@ export async function refreshConnectorSchema(): Promise<ConnectorActionResult> {
     };
     return { ok: true, state, message: messages[state.schemaStatus] };
   } catch (error) {
-    return { ok: false, status: 502, error: describeError(error), state: await readState() };
+    return { ok: false, status: 424, error: describeError(error), state: await readState() };
   }
 }
 
 /** Supprime la connexion externe (et tous ses éléments côté Microsoft 365) puis réinitialise l'état. */
 export async function deleteConnection(): Promise<ConnectorActionResult> {
   if (!getAppCredentials()) {
-    return { ok: false, status: 503, error: "Microsoft Graph non configuré.", state: await readState() };
+    return { ok: false, status: 409, error: "Microsoft Graph non configuré.", state: await readState() };
   }
   if (getSyncInFlight()) {
     return { ok: false, status: 409, error: "Synchronisation en cours, réessayez plus tard.", state: await readState() };
@@ -273,7 +273,7 @@ export async function deleteConnection(): Promise<ConnectorActionResult> {
     await connectorRequest("DELETE", connectionPath());
   } catch (error) {
     if (!isNotFound(error)) {
-      return { ok: false, status: 502, error: describeError(error), state: await readState() };
+      return { ok: false, status: 424, error: describeError(error), state: await readState() };
     }
   }
   const state = await patchState((current) => {

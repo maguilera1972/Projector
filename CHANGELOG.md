@@ -7,6 +7,18 @@ une section par date (`## AAAA-MM-JJ`), puis les rubriques
 
 Les nouvelles entrées s'ajoutent **en haut**, juste sous ce paragraphe.
 
+## 2026-11-02
+
+### Corrigé
+
+- Administration Microsoft Teams & Copilot : faux « Permissions manquantes » après un consentement administrateur — le jeton d'application Graph mis en cache (jusqu'à une heure) n'était jamais renouvelé, même avec « Revérifier ». Le jeton est désormais réutilisé 10 minutes au plus, renouvelé automatiquement si une permission semble absente, et « Revérifier les permissions » en demande toujours un nouveau.
+- Message générique « Une erreur est survenue. » dans l'administration : Cloudflare remplaçait le corps des réponses HTTP 502 (échecs Graph) par du texte brut. Les routes d'intégration renvoient maintenant 424 (échec Graph) ou 409 (fonctionnalité indisponible), et l'interface affiche le statut HTTP et le message réel de l'erreur.
+
+### Modifié
+
+- Contrôle des capacités : les permissions équivalentes ou plus larges sont acceptées (par ex. `TeamsTab.ReadWriteForTeam.All`, `TeamsAppInstallation.ReadWriteSelfForTeam.All`, `Sites.ReadWrite.All`, `Group.ReadWrite.All`), et les capacités sont confirmées par des appels Graph réels en lecture seule (équipes, applications d'équipe, calendrier de l'organisateur, connexion du connecteur).
+- Panneau d'administration : liste repliable des permissions présentes dans le jeton, date d'émission, d'expiration et de lecture du jeton, permission qui satisfait chaque exigence et résultat des appels de contrôle (5 langues).
+
 ## 2026-10-27
 
 ### Ajouté

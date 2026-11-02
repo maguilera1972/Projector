@@ -6,6 +6,7 @@ import { useI18n } from "@/lib/i18n/client";
 import { getIntegrationTranslator, itDynamic } from "@/lib/integrations/i18n";
 import type { CapabilityReport, FeatureCapability } from "@/lib/integrations/capabilities";
 import type { JobsReport } from "@/lib/integrations/jobs";
+import { readApiResponse } from "@/lib/integrations/client-response";
 import { formatDate } from "@/lib/utils";
 import {
   INTEGRATION_FEATURES,
@@ -33,6 +34,7 @@ function StatusBadge({ capability, it }: { capability: FeatureCapability; it: Re
     missing_roles: "bg-amber-50 text-amber-800",
     not_configured: "bg-red-50 text-red-700",
     bot_token: "bg-amber-50 text-amber-800",
+    probe_failed: "bg-red-50 text-red-700",
   };
   const labels: Record<string, string> = {
     usable: it("admin.statusUsable"),
@@ -40,6 +42,7 @@ function StatusBadge({ capability, it }: { capability: FeatureCapability; it: Re
     missing_roles: it("admin.statusMissingRoles"),
     not_configured: it("admin.statusNotConfigured"),
     bot_token: it("admin.statusBotToken"),
+    probe_failed: it("admin.statusProbeFailed"),
   };
   return <span className={`rounded px-2 py-0.5 text-xs font-medium ${styles[reason]}`}>{labels[reason]}</span>;
 }
@@ -78,10 +81,13 @@ export function AdminTeamsPanel() {
     setFeedback(null);
     try {
       const response = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
-      const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-      if (!response.ok) {
-        const detail = typeof data.error === "string" ? data.error : t("common.unknownError");
-        setFeedback({ ok: false, text: typeof data.reason === "string" ? `${data.reason} — ${detail}` : detail });
+      const result = await readApiResponse<Record<string, unknown>>(response);
+      const data = result.data as Record<string, unknown>;
+      if (!result.ok) {
+        setFeedback({
+          ok: false,
+          text: it("admin.actionFailed", { status: result.status, error: result.error ?? t("common.unknownError") }),
+        });
       } else {
         setFeedback({
           ok: true,
@@ -169,15 +175,29 @@ export function AdminTeamsPanel() {
                   ? it("admin.tokenError", { error: capabilities.tokenError })
                   : it("admin.tokenOk")}
               </p>
-              <p className="text-brand-muted">{it("admin.rolesTitle")}</p>
-              <div className="flex flex-wrap gap-1">
-                {capabilities.roles.length === 0 && <span className="text-xs">{it("admin.noRoles")}</span>}
-                {capabilities.roles.map((role) => (
-                  <code key={role} className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">
-                    {role}
-                  </code>
-                ))}
-              </div>
+              {capabilities.token?.issuedAt && (
+                <p className="text-xs text-brand-muted">
+                  {it("admin.tokenIssued", {
+                    issued: new Date(capabilities.token.issuedAt).toLocaleString(locale),
+                    expires: capabilities.token.expiresAt ? new Date(capabilities.token.expiresAt).toLocaleString(locale) : "—",
+                    checked: new Date(capabilities.token.checkedAt).toLocaleString(locale),
+                  })}
+                </p>
+              )}
+              <details className="text-sm">
+                <summary className="cursor-pointer text-brand-muted">
+                  {it("admin.rolesToggle", { count: capabilities.roles.length })}
+                </summary>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {capabilities.roles.length === 0 && <span className="text-xs">{it("admin.noRoles")}</span>}
+                  {capabilities.roles.map((role) => (
+                    <code key={role} className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">
+                      {role}
+                    </code>
+                  ))}
+                </div>
+              </details>
+              <p className="text-xs text-brand-muted">{it("admin.consentHint")}</p>
             </>
           )}
         </div>
@@ -263,9 +283,32 @@ export function AdminTeamsPanel() {
                     <StatusBadge capability={capability} it={it} />
                   </p>
                   <p className="mt-0.5 text-xs text-brand-muted">{itDynamic(it, `features.${feature}.description`)}</p>
-                  {capability.missingRoles.length > 0 && (
-                    <p className="mt-1 text-xs text-amber-800">
-                      {it("admin.missingRoles", { roles: capability.missingRoles.join(", ") })}
+                  {capability.requirements
+                    .filter((requirement) => requirement.satisfiedBy)
+                    .map((requirement) => (
+                      <p key={requirement.anyOf[0]} className="mt-0.5 text-[11px] text-emerald-700">
+                        ✓ {requirement.anyOf[0]}
+                        {requirement.satisfiedBy !== requirement.anyOf[0] &&
+                          ` (${it("admin.satisfiedBy", { role: requirement.satisfiedBy ?? "" })})`}
+                      </p>
+                    ))}
+                  {capability.requirements
+                    .filter((requirement) => !requirement.satisfiedBy)
+                    .map((requirement) => (
+                      <p key={requirement.anyOf[0]} className="mt-1 text-xs text-amber-800">
+                        {it("admin.missingRoles", { roles: requirement.anyOf[0] })}
+                        {requirement.anyOf.length > 1 && (
+                          <span className="block text-[11px] text-brand-muted">
+                            {it("admin.equivalents", { roles: requirement.anyOf.slice(1).join(", ") })}
+                          </span>
+                        )}
+                      </p>
+                    ))}
+                  {capability.probe && (
+                    <p className={`mt-1 text-[11px] ${capability.probe.ok ? "text-emerald-700" : "text-red-700"}`}>
+                      {capability.probe.ok
+                        ? it("admin.probeOk", { call: capability.probe.call })
+                        : it("admin.probeFailed", { call: capability.probe.call, detail: capability.probe.detail ?? "" })}
                     </p>
                   )}
                   {capability.missingOptionalRoles.length > 0 && (

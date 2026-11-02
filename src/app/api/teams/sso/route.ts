@@ -41,7 +41,7 @@ interface TeamsSsoClaims {
 
 const STATUS: Record<TeamsSsoErrorCode, number> = {
   invalid_request: 400,
-  sso_not_configured: 503,
+  sso_not_configured: 409,
   entra_disabled: 403,
   invalid_token: 401,
   wrong_tenant: 403,

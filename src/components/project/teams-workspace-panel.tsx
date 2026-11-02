@@ -5,6 +5,7 @@ import { ExternalLink, Loader2, RefreshCw, Users } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 import { formatDate } from "@/lib/utils";
 import { getIntegrationTranslator, itDynamic } from "@/lib/integrations/i18n";
+import { readApiResponse } from "@/lib/integrations/client-response";
 import type { ProjectTeamsWorkspace } from "@/types";
 
 interface WorkspacePlan {
@@ -63,9 +64,13 @@ export function TeamsWorkspacePanel({ projectId, initialWorkspace, canManage }: 
     setFeedback(null);
     try {
       const response = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
-      const data = (await response.json().catch(() => ({}))) as T & { message?: string; error?: string };
-      if (!response.ok) {
-        setFeedback({ ok: false, text: data.error ?? t("common.unknownError") });
+      const result = await readApiResponse<Record<string, unknown>>(response);
+      const data = result.data as T & { message?: string };
+      if (!result.ok) {
+        setFeedback({
+          ok: false,
+          text: it("admin.actionFailed", { status: result.status, error: result.error ?? t("common.unknownError") }),
+        });
         return null;
       }
       if (data.message) setFeedback({ ok: true, text: data.message });

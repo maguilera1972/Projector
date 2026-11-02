@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getIntegrationSettings, setProjectTeamsWorkspace } from "@/lib/db/store";
 import { checkFeature } from "@/lib/integrations/capabilities";
-import { graphFailure, jsonError, requireProjectManager } from "@/lib/integrations/http";
+import { graphFailure, jsonError, requireProjectManager, HTTP_FEATURE_UNAVAILABLE } from "@/lib/integrations/http";
 import { syncTeamMembers } from "@/lib/teams/workspace";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export async function POST(_request: Request, { params }: RouteParams) {
   const { actor, it, project } = guard.value;
   if (!project.teams) return jsonError(it("errors.noWorkspace"), 404);
   const check = await checkFeature("workspaces", await getIntegrationSettings());
-  if (!check.ok) return jsonError(it("workspace.unavailable", { reason: check.message }), 503);
+  if (!check.ok) return jsonError(it("workspace.unavailable", { reason: check.message }), HTTP_FEATURE_UNAVAILABLE);
   try {
     const sync = await syncTeamMembers(project, project.teams.teamId);
     const updated = await setProjectTeamsWorkspace(project.id, { ...project.teams, lastMemberSync: sync }, actor);

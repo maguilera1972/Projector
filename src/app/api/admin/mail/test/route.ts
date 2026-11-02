@@ -18,7 +18,7 @@ export async function POST() {
   if (!result.ok) {
     return NextResponse.json(
       { error: t("admin.mailTestFailed", { error: result.error }) },
-      { status: result.reason === "not_configured" ? 400 : 502 },
+      { status: result.reason === "not_configured" ? 400 : 424 },
     );
   }
   return NextResponse.json({ message: t("admin.mailTestSent", { email: user.email }) });

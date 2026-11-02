@@ -17,6 +17,13 @@ export type Actor = SessionUser & Pick<User, "entraOid">;
 
 export type Guard<T> = { ok: true; value: T } | { ok: false; response: NextResponse };
 
+/**
+ * Codes d'erreur des routes d'intégration appelées par le navigateur : Cloudflare remplace le corps des
+ * réponses 502/504 de l'origine par « error code: 502 », ce qui masquerait le message Graph.
+ */
+export const HTTP_UPSTREAM_FAILED = 424;
+export const HTTP_FEATURE_UNAVAILABLE = 409;
+
 export function jsonError(error: string, status: number): NextResponse {
   return NextResponse.json({ error }, { status });
 }
@@ -69,9 +76,9 @@ export async function requireProjectManager(
 
 /** Réponse d'erreur pour une exception Graph / configuration (sans détail sensible). */
 export function graphFailure(error: unknown): NextResponse {
-  if (error instanceof NotConfiguredError) return jsonError(error.message, 503);
+  if (error instanceof NotConfiguredError) return jsonError(error.message, HTTP_FEATURE_UNAVAILABLE);
   if (error instanceof GraphError) {
-    return jsonError(error.message, error.status === 403 || error.status === 401 ? 403 : 502);
+    return jsonError(error.message, error.status === 403 || error.status === 401 ? 403 : HTTP_UPSTREAM_FAILED);
   }
   return jsonError(error instanceof Error ? error.message : String(error), 400);
 }
