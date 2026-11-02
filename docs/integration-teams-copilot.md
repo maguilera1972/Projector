@@ -855,7 +855,7 @@ d'administration Teams, retirer le canal Teams de la ressource Azure Bot.
 
 ### Ressource Azure Bot et canal Teams
 
-- 2026-10-27 : **non créée** (action administrateur, étape 1). Le jeton Bot Connector est déjà obtenu avec le secret de l'application (`scope https://api.botframework.com/.default`, HTTP 200).
+- 2026-11-02 : **créée** par `node scripts/azure/create-azure-bot.mjs --sp` — `/subscriptions/3897598e-b559-4ce6-97bd-63252cb96e18/resourceGroups/MAITLAB/providers/Microsoft.BotService/botServices/projector-bot` (azurebot, F0, global, SingleTenant, app `f5f1bb90-…`, locataire `c4691421-…`), point de terminaison `https://projector.aguilera.ch/api/teams/messages`, canal **Microsoft Teams activé** (provisioningState `Succeeded`). Pré-requis levés : rôle Contributor du principal de service sur `MAITLAB`, fournisseur `Microsoft.BotService` inscrit sur l'abonnement. Historique : 2026-10-27, non créée. Le jeton Bot Connector est déjà obtenu avec le secret de l'application (`scope https://api.botframework.com/.default`, HTTP 200).
 - Point de terminaison déployé : `POST https://projector.aguilera.ch/api/teams/messages` — sans jeton → **401** ; jeton falsifié → **401** (« Clé de signature inconnue ») ; `GET` → **405**.
 
 ### Entra ID : « Exposer une API », rôles d'application, redirection
