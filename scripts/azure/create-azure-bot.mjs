@@ -3,21 +3,27 @@
  * Crée (ou met à jour) la ressource Azure Bot de PROJECTOR et active le canal Microsoft Teams,
  * via l'API Azure Resource Manager, sans Azure CLI.
  *
- * Authentification : connexion interactive par code d'appareil (client public Azure CLI) avec un compte
- * disposant du rôle Contributeur sur l'abonnement (ou sur le groupe de ressources). Aucun jeton n'est
- * affiché ni enregistré. Idempotent : peut être relancé sans risque.
+ * Authentification :
+ * - `--sp` : principal de service de PROJECTOR (identifiants MS_GRAPH_* / ENTRA_* de .env.local), qui doit
+ *   avoir le rôle Contributeur sur le groupe de ressources (Contrôle d'accès IAM) ;
+ * - sinon : connexion interactive par code d'appareil (client public Azure CLI) — peut être bloquée par
+ *   l'accès conditionnel du locataire.
+ * Aucun jeton n'est affiché ni enregistré. Idempotent : peut être relancé sans risque. Le groupe de
+ * ressources existant n'est pas recréé.
  *
  * Usage :
- *   node scripts/azure/create-azure-bot.mjs [--subscription <id>] [--resource-group rg-projector]
- *        [--location switzerlandnorth] [--name projector-bot] [--status-file <fichier>]
+ *   node scripts/azure/create-azure-bot.mjs --sp [--subscription <id>] [--resource-group MAITLAB]
+ *        [--location switzerlandnorth] [--name projector-bot] [--status-file .local/azure-bot-status.json]
  */
-import { writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
+import path from "path";
 
 const DEFAULTS = {
   tenant: "c4691421-eeae-4c7e-bd67-17849bca6c78",
   appId: "f5f1bb90-afec-4e0d-9500-2f6e970ef5a9",
   endpoint: "https://projector.aguilera.ch/api/teams/messages",
-  resourceGroup: "rg-projector",
+  subscription: "3897598e-b559-4ce6-97bd-63252cb96e18",
+  resourceGroup: "MAITLAB",
   location: "switzerlandnorth",
   name: "projector-bot",
 };
@@ -34,11 +40,12 @@ const config = {
   tenant: option("tenant", process.env.AZURE_TENANT_ID || DEFAULTS.tenant),
   appId: option("app-id", DEFAULTS.appId),
   endpoint: option("endpoint", DEFAULTS.endpoint),
-  subscription: option("subscription", process.env.AZURE_SUBSCRIPTION_ID || ""),
+  subscription: option("subscription", process.env.AZURE_SUBSCRIPTION_ID || DEFAULTS.subscription),
   resourceGroup: option("resource-group", DEFAULTS.resourceGroup),
   location: option("location", DEFAULTS.location),
   name: option("name", DEFAULTS.name),
   statusFile: option("status-file", ""),
+  servicePrincipal: args.includes("--sp"),
 };
 
 const status = { step: "start", startedAt: new Date().toISOString(), messages: [] };
@@ -86,6 +93,38 @@ async function deviceCodeLogin() {
   throw new Error("Code d'appareil expiré (15 minutes) : relancez le script.");
 }
 
+/** Lecture ciblée de .env.local (seules les clés d'identifiants de l'application). */
+function readEnvLocal() {
+  const file = path.join(process.cwd(), ".env.local");
+  if (!existsSync(file)) return {};
+  return Object.fromEntries(
+    readFileSync(file, "utf8")
+      .split("\n")
+      .map((line) => /^([A-Z_]+)=(.*)$/.exec(line.trim()))
+      .filter(Boolean)
+      .map(([, key, value]) => [key, value.replace(/^["']|["']$/g, "")]),
+  );
+}
+
+async function servicePrincipalLogin() {
+  const env = { ...readEnvLocal(), ...process.env };
+  const tenant = env.MS_GRAPH_TENANT_ID || env.ENTRA_TENANT_ID || config.tenant;
+  const clientId = env.MS_GRAPH_CLIENT_ID || env.ENTRA_CLIENT_ID;
+  const secret = env.MS_GRAPH_CLIENT_SECRET || env.ENTRA_CLIENT_SECRET;
+  if (!clientId || !secret) throw new Error("Identifiants MS_GRAPH_* / ENTRA_* introuvables (.env.local).");
+  const result = await form(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+    client_id: clientId,
+    client_secret: secret,
+    scope: `${ARM}/.default`,
+    grant_type: "client_credentials",
+  });
+  if (!result.data.access_token) throw new Error(`Jeton ARM refusé : ${result.data.error_description?.split("\r\n")[0] ?? result.status}`);
+  return result.data.access_token;
+}
+
+const IAM_HINT =
+  "Accordez au principal de service PROJECTOR (f5f1bb90-afec-4e0d-9500-2f6e970ef5a9) le rôle Contributeur sur le groupe de ressources : portail Azure › Groupes de ressources › <groupe> › Contrôle d'accès (IAM) › Ajouter une attribution de rôle.";
+
 async function arm(token, method, path, body) {
   const response = await fetch(`${ARM}${path}`, {
     method,
@@ -107,8 +146,8 @@ function armError(result) {
 }
 
 async function main() {
-  const token = await deviceCodeLogin();
-  report("logged_in", "Connexion Azure réussie.");
+  const token = config.servicePrincipal ? await servicePrincipalLogin() : await deviceCodeLogin();
+  report("logged_in", config.servicePrincipal ? "Jeton ARM du principal de service obtenu." : "Connexion Azure réussie.");
 
   let subscription = config.subscription;
   if (!subscription) {
@@ -125,22 +164,40 @@ async function main() {
   }
   report("subscription", `Abonnement : ${subscription}`, { subscription });
 
-  const provider = await arm(token, "POST", `/subscriptions/${subscription}/providers/Microsoft.BotService/register?api-version=2021-04-01`);
-  if (provider.status >= 300) throw new Error(`Enregistrement du fournisseur Microsoft.BotService : ${armError(provider)}`);
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const state = await arm(token, "GET", `/subscriptions/${subscription}/providers/Microsoft.BotService?api-version=2021-04-01`);
-    if (state.data.registrationState === "Registered") break;
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+  const providerPath = `/subscriptions/${subscription}/providers/Microsoft.BotService?api-version=2021-04-01`;
+  const provider = await arm(token, "GET", providerPath);
+  if (provider.status === 200 && provider.data.registrationState !== "Registered") {
+    const register = await arm(token, "POST", `/subscriptions/${subscription}/providers/Microsoft.BotService/register?api-version=2021-04-01`);
+    if (register.status >= 300) {
+      throw new Error(`Fournisseur Microsoft.BotService non enregistré (${armError(register)}) : Abonnement › Fournisseurs de ressources › Microsoft.BotService › Inscrire.`);
+    }
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const state = await arm(token, "GET", providerPath);
+      if (state.data.registrationState === "Registered") break;
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+    report("provider", "Fournisseur Microsoft.BotService enregistré.");
+  } else if (provider.status === 200) {
+    report("provider", "Fournisseur Microsoft.BotService déjà enregistré.");
+  } else {
+    report("provider", `État du fournisseur Microsoft.BotService illisible (${provider.status}) : supposé enregistré.`);
   }
-  report("provider", "Fournisseur Microsoft.BotService enregistré.");
 
   const groupPath = `/subscriptions/${subscription}/resourceGroups/${config.resourceGroup}`;
-  const group = await arm(token, "PUT", `${groupPath}?api-version=2021-04-01`, {
-    location: config.location,
-    tags: { application: "PROJECTOR" },
-  });
-  if (group.status >= 300) throw new Error(`Groupe de ressources : ${armError(group)}`);
-  report("resource_group", `Groupe de ressources prêt : ${config.resourceGroup} (${config.location}).`);
+  const existing = await arm(token, "GET", `${groupPath}?api-version=2021-04-01`);
+  if (existing.status === 403) throw new Error(`Accès refusé au groupe de ressources ${config.resourceGroup} (${armError(existing)}). ${IAM_HINT}`);
+  if (existing.status === 404) {
+    const group = await arm(token, "PUT", `${groupPath}?api-version=2021-04-01`, {
+      location: config.location,
+      tags: { application: "PROJECTOR" },
+    });
+    if (group.status >= 300) throw new Error(`Groupe de ressources : ${armError(group)}`);
+    report("resource_group", `Groupe de ressources créé : ${config.resourceGroup} (${config.location}).`);
+  } else if (existing.status >= 300) {
+    throw new Error(`Groupe de ressources : ${armError(existing)}`);
+  } else {
+    report("resource_group", `Groupe de ressources existant : ${config.resourceGroup} (${existing.data.location}).`);
+  }
 
   const botPath = `${groupPath}/providers/Microsoft.BotService/botServices/${config.name}`;
   const bot = await arm(token, "PUT", `${botPath}?api-version=${BOT_API}`, {
@@ -157,7 +214,12 @@ async function main() {
       msaAppTenantId: config.tenant,
     },
   });
-  if (bot.status >= 300) throw new Error(`Ressource Azure Bot : ${armError(bot)}`);
+  if (bot.status >= 300) {
+    const hint = bot.status === 403 ? ` ${IAM_HINT}` : bot.data?.error?.code === "MissingSubscriptionRegistration"
+      ? " Abonnement › Fournisseurs de ressources › Microsoft.BotService › Inscrire."
+      : "";
+    throw new Error(`Ressource Azure Bot : ${armError(bot)}${hint}`);
+  }
   report("bot", `Azure Bot prêt : ${bot.data.id ?? botPath}`, { botResourceId: bot.data.id ?? botPath });
 
   const channel = await arm(token, "PUT", `${botPath}/channels/MsTeamsChannel?api-version=${BOT_API}`, {

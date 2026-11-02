@@ -14,6 +14,7 @@ Les nouvelles entrées s'ajoutent **en haut**, juste sous ce paragraphe.
 - Scripts de création de la ressource Azure Bot (`scripts/azure/create-azure-bot.mjs` sans Azure CLI, connexion par code d'appareil ; `scripts/azure/create-azure-bot.sh` avec Azure CLI) : groupe de ressources, bot F0 mono-locataire sur l'inscription existante, point de terminaison `https://projector.aguilera.ch/api/teams/messages`, canal Microsoft Teams ; idempotents.
 - Administration : état réel du bot (date du dernier événement reçu de Teams, ou avertissement si aucun), en 5 langues.
 - Paquet Teams complet (avec bot) en version 1.1.0, à importer une fois l'Azure Bot créé.
+- Création de l'Azure Bot en mode principal de service (`node scripts/azure/create-azure-bot.mjs --sp`, sans interaction, la connexion par code d'appareil étant bloquée par l'accès conditionnel) ; cible par défaut : abonnement « Microsoft Partner Network », groupe de ressources existant `MAITLAB` (non recréé) ; messages explicites si le rôle Contributeur ou l'inscription du fournisseur `Microsoft.BotService` manque.
 
 ### Ajouté
 

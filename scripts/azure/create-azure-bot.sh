@@ -3,10 +3,17 @@
 # Idempotent. Variante sans Azure CLI : node scripts/azure/create-azure-bot.mjs (connexion par code).
 #
 # Usage : bash scripts/azure/create-azure-bot.sh [abonnement] [groupe-de-ressources] [région]
+#         bash scripts/azure/create-azure-bot.sh --sp   → mode principal de service (sans Azure CLI)
 set -euo pipefail
 
-SUBSCRIPTION="${1:-${AZURE_SUBSCRIPTION_ID:-}}"
-RESOURCE_GROUP="${2:-rg-projector}"
+if [[ "${1:-}" == "--sp" ]]; then
+  cd "$(dirname "$0")/../.."
+  mkdir -p .local
+  exec node scripts/azure/create-azure-bot.mjs --sp --status-file .local/azure-bot-status.json "${@:2}"
+fi
+
+SUBSCRIPTION="${1:-${AZURE_SUBSCRIPTION_ID:-3897598e-b559-4ce6-97bd-63252cb96e18}}"
+RESOURCE_GROUP="${2:-MAITLAB}"
 LOCATION="${3:-switzerlandnorth}"
 BOT_NAME="${BOT_NAME:-projector-bot}"
 TENANT_ID="c4691421-eeae-4c7e-bd67-17849bca6c78"
@@ -22,7 +29,8 @@ fi
 echo "Abonnement : $(az account show --query '[name, id]' -o tsv | paste -sd ' ')"
 
 az provider register --namespace Microsoft.BotService --wait >/dev/null
-az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --tags application=PROJECTOR -o none
+az group show --name "$RESOURCE_GROUP" -o none 2>/dev/null \
+  || az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --tags application=PROJECTOR -o none
 
 if az bot show --resource-group "$RESOURCE_GROUP" --name "$BOT_NAME" >/dev/null 2>&1; then
   az bot update --resource-group "$RESOURCE_GROUP" --name "$BOT_NAME" --endpoint "$ENDPOINT" -o none
