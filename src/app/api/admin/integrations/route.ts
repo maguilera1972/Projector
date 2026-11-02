@@ -27,6 +27,7 @@ async function snapshot(force: boolean) {
       total: conversations.length,
       personal: conversations.filter((ref) => ref.scope === "personal").length,
       channel: conversations.filter((ref) => ref.scope === "channel").length,
+      lastActivityAt: conversations.map((ref) => ref.updatedAt).sort().pop() ?? null,
     },
   };
 }

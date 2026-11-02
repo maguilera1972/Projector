@@ -574,6 +574,22 @@ La propagation peut prendre jusqu'à 2 heures (cache). Autres mesures :
 
 ### Étape 1 — Ressource Azure Bot (inscription existante)
 
+**Par script (recommandé)** — compte Azure avec le rôle Contributeur sur l'abonnement ; le principal de
+service de PROJECTOR n'a aucun rôle Azure et ne peut pas créer la ressource lui-même.
+
+```bash
+# Sans Azure CLI : connexion par code d'appareil, puis groupe de ressources, bot F0 et canal Teams
+node scripts/azure/create-azure-bot.mjs [--subscription <id>] [--resource-group rg-projector] [--location switzerlandnorth]
+# Avec Azure CLI
+bash scripts/azure/create-azure-bot.sh [<abonnement>] [rg-projector] [switzerlandnorth]
+```
+
+Optionnel (moindre privilège) : pour que PROJECTOR gère ensuite le bot lui-même, accorder au principal de
+service le rôle Contributeur sur le seul groupe de ressources :
+`az role assignment create --assignee f5f1bb90-afec-4e0d-9500-2f6e970ef5a9 --role Contributor --scope /subscriptions/<id>/resourceGroups/rg-projector`.
+
+**Par le portail** :
+
 1. Portail Azure → **Créer une ressource** → **Azure Bot**.
 2. Nom : `projector-bot` ; offre : **Standard** ou gratuite (F0) ; groupe de ressources au choix.
 3. **Type d'application : Single Tenant** ; **Utiliser une inscription d'application existante** :

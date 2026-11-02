@@ -74,6 +74,8 @@ const fr = {
     botKo: "Jeton Bot Connector indisponible : {error}",
     botHint: "Créez la ressource Azure Bot (mono-locataire, même ID d'application) et activez le canal Microsoft Teams.",
     conversations: "{count} conversation(s) Teams connue(s) du bot",
+    botTraffic: "Bot joignable : dernier événement reçu de Teams le {date}.",
+    botNoTraffic: "Aucun événement reçu de Teams : vérifiez la ressource Azure Bot (point de terminaison, canal Teams) et installez l'application Teams complète (avec bot).",
     teamsApp: "Application Teams",
     teamsAppId: "ID du manifeste",
     catalogId: "ID dans le catalogue de l'organisation",

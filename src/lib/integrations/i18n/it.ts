@@ -76,6 +76,8 @@ const it: IntegrationMessages = {
     botKo: "Token Bot Connector non disponibile: {error}",
     botHint: "Crea la risorsa Azure Bot (tenant singolo, stesso ID applicazione) e attiva il canale Microsoft Teams.",
     conversations: "{count} conversazione/i Teams note al bot",
+    botTraffic: "Bot raggiungibile: ultimo evento ricevuto da Teams il {date}.",
+    botNoTraffic: "Nessun evento ricevuto da Teams: verifica la risorsa Azure Bot (endpoint, canale Teams) e installa l'app Teams completa (con bot).",
     teamsApp: "App Teams",
     teamsAppId: "ID del manifesto",
     catalogId: "ID nel catalogo dell'organizzazione",

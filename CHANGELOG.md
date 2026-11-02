@@ -9,6 +9,12 @@ Les nouvelles entrées s'ajoutent **en haut**, juste sous ce paragraphe.
 
 ## 2026-11-02
 
+### Ajouté (Azure Bot)
+
+- Scripts de création de la ressource Azure Bot (`scripts/azure/create-azure-bot.mjs` sans Azure CLI, connexion par code d'appareil ; `scripts/azure/create-azure-bot.sh` avec Azure CLI) : groupe de ressources, bot F0 mono-locataire sur l'inscription existante, point de terminaison `https://projector.aguilera.ch/api/teams/messages`, canal Microsoft Teams ; idempotents.
+- Administration : état réel du bot (date du dernier événement reçu de Teams, ou avertissement si aucun), en 5 langues.
+- Paquet Teams complet (avec bot) en version 1.1.0, à importer une fois l'Azure Bot créé.
+
 ### Ajouté
 
 - Installation automatique de l'application Teams PROJECTOR pour chaque utilisateur lié à Entra avant l'envoi d'une notification (`TeamsAppInstallation.ReadWriteSelfForUser.All`), avec mise en cache de l'état d'installation et nouvel essai unique de la notification.

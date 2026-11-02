@@ -18,7 +18,7 @@ import {
 interface Snapshot {
   settings: IntegrationSettings;
   capabilities: CapabilityReport;
-  conversations: { total: number; personal: number; channel: number };
+  conversations: { total: number; personal: number; channel: number; lastActivityAt: string | null };
 }
 
 type Feedback = { ok: boolean; text: string } | null;
@@ -213,6 +213,11 @@ export function AdminTeamsPanel() {
           </p>
           <p className="text-xs text-brand-muted">{it("admin.botHint")}</p>
           <p className="text-xs">{it("admin.conversations", { count: conversations.total })}</p>
+          <p className={`text-xs ${conversations.lastActivityAt ? "text-emerald-700" : "text-amber-700"}`}>
+            {conversations.lastActivityAt
+              ? it("admin.botTraffic", { date: new Date(conversations.lastActivityAt).toLocaleString(locale) })
+              : it("admin.botNoTraffic")}
+          </p>
 
           <h3 className="pt-2 font-semibold text-slate-900">{it("admin.teamsApp")}</h3>
           <p>
