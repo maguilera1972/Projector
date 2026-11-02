@@ -24,6 +24,7 @@ Les nouvelles entrées s'ajoutent **en haut**, juste sous ce paragraphe.
 
 ### Corrigé (Teams)
 
+- `scripts/teams/build-teams-app.sh` : sans l'option `--without-bot`, le script s'arrêtait avant de créer l'archive (substitution évaluée en échec sous `set -e`), laissant un ancien paquet 1.0.0 ; le paquet complet 1.1.0 est désormais bien généré.
 - Diagnostic des échecs Teams : l'erreur Graph `CreateThreadS2SRequest` (conversation du bot impossible à créer faute de ressource Azure Bot), l'absence de licence Teams et l'application non installée sont identifiées et expliquées, au lieu d'un message Graph brut.
 - « Détecter depuis mon installation » : repli sur le catalogue de l'organisation (si `AppCatalog.Read.All` est accordée) et message explicite si l'application est introuvable ; l'ID de catalogue déjà enregistré est conservé.
 

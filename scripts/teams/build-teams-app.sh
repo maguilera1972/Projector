@@ -221,7 +221,9 @@ PY
   fi
 fi
 
-ZIP="$OUT_DIR/projector-teams$([[ "$WITHOUT_BOT" == 1 ]] && echo "-sans-bot").zip"
+ZIP_SUFFIX=""
+if [[ "$WITHOUT_BOT" == 1 ]]; then ZIP_SUFFIX="-sans-bot"; fi
+ZIP="$OUT_DIR/projector-teams${ZIP_SUFFIX}.zip"
 rm -f "$ZIP"
 if command -v zip >/dev/null; then
   (cd "$STAGE" && zip -q -X -r "$ZIP" .)
