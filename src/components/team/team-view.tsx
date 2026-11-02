@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { UserAvatar } from "@/components/user/user-avatar";
+import { useI18n } from "@/lib/i18n/client";
 import type { User } from "@/lib/auth/permissions";
 import {
   SKILL_LEVEL_LABELS,
@@ -36,12 +37,34 @@ export function TeamView({
   canEdit,
 }: TeamViewProps) {
   const router = useRouter();
-  const [groups, setGroups] = useState(initialGroups);
+  const { t } = useI18n();
+  const [allGroups, setGroups] = useState(initialGroups);
   const [skills, setSkills] = useState(initialSkills);
   const [profiles, setProfiles] = useState(initialProfiles);
+  const [serverProps, setServerProps] = useState({
+    initialGroups,
+    initialSkills,
+    initialProfiles,
+  });
+  const [hiddenGroupIds, setHiddenGroupIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [newGroup, setNewGroup] = useState({ name: "", description: "" });
+
+  if (
+    serverProps.initialGroups !== initialGroups ||
+    serverProps.initialSkills !== initialSkills ||
+    serverProps.initialProfiles !== initialProfiles
+  ) {
+    setServerProps({ initialGroups, initialSkills, initialProfiles });
+    setGroups(initialGroups);
+    setSkills(initialSkills);
+    setProfiles(initialProfiles);
+  }
+
+  const groups = allGroups.filter((group) => !hiddenGroupIds.has(group.id));
 
   function getSkillLevel(userId: string, groupId: string): SkillLevel | "" {
     return skills.find(
@@ -77,7 +100,7 @@ export function TeamView({
       };
 
       if (!response.ok) {
-        setError(data.error ?? "Création impossible.");
+        setError(data.error ?? t("team.createGroupFailed"));
         return;
       }
 
@@ -92,36 +115,52 @@ export function TeamView({
       setNewGroup({ name: "", description: "" });
       await refreshPage();
     } catch {
-      setError("Erreur réseau.");
+      setError(t("common.networkError"));
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleDeleteGroup(groupId: string) {
-    if (!confirm("Supprimer ce groupe de compétences ?")) return;
+  function setGroupHidden(groupId: string, hidden: boolean) {
+    setHiddenGroupIds((current) => {
+      const next = new Set(current);
+      if (hidden) next.add(groupId);
+      else next.delete(groupId);
+      return next;
+    });
+  }
+
+  async function handleDeleteGroup(group: ResourceGroup) {
+    if (!confirm(t("team.deleteGroupConfirm", { name: group.name }))) return;
 
     setLoading(true);
     setError("");
+    setGroupHidden(group.id, true);
 
     try {
-      const response = await fetch(`/api/resource-groups/${groupId}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(
+        `/api/resource-groups/${encodeURIComponent(group.id)}`,
+        { method: "DELETE" },
+      );
 
-      if (!response.ok) {
-        const data = (await response.json()) as { error?: string };
-        setError(data.error ?? "Suppression impossible.");
+      // 404 : déjà supprimé côté serveur, l'affichage était simplement périmé.
+      if (!response.ok && response.status !== 404) {
+        const data = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setGroupHidden(group.id, false);
+        setError(data.error ?? t("team.deleteGroupFailed"));
         return;
       }
 
-      setGroups((current) => current.filter((group) => group.id !== groupId));
+      setGroups((current) => current.filter((item) => item.id !== group.id));
       setSkills((current) =>
-        current.filter((skill) => skill.groupId !== groupId),
+        current.filter((skill) => skill.groupId !== group.id),
       );
       await refreshPage();
     } catch {
-      setError("Erreur réseau.");
+      setGroupHidden(group.id, false);
+      setError(t("common.networkError"));
     } finally {
       setLoading(false);
     }
@@ -137,11 +176,18 @@ export function TeamView({
 
     try {
       if (level === "") {
-        await fetch("/api/resource-skills", {
+        const response = await fetch("/api/resource-skills", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId, groupId }),
         });
+        if (!response.ok) {
+          const data = (await response.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          setError(data.error ?? t("team.updateFailed"));
+          return;
+        }
         setSkills((current) =>
           current.filter(
             (skill) => !(skill.userId === userId && skill.groupId === groupId),
@@ -160,7 +206,7 @@ export function TeamView({
         };
 
         if (!response.ok) {
-          setError(data.error ?? "Mise à jour impossible.");
+          setError(data.error ?? t("team.updateFailed"));
           return;
         }
 
@@ -177,7 +223,7 @@ export function TeamView({
 
       await refreshPage();
     } catch {
-      setError("Erreur réseau.");
+      setError(t("common.networkError"));
     } finally {
       setLoading(false);
     }
@@ -200,7 +246,7 @@ export function TeamView({
       };
 
       if (!response.ok) {
-        setError(data.error ?? "Mise à jour impossible.");
+        setError(data.error ?? t("team.updateFailed"));
         return;
       }
 
@@ -215,7 +261,7 @@ export function TeamView({
 
       await refreshPage();
     } catch {
-      setError("Erreur réseau.");
+      setError(t("common.networkError"));
     } finally {
       setLoading(false);
     }
@@ -314,10 +360,10 @@ export function TeamView({
                 {canEdit && (
                   <button
                     type="button"
-                    onClick={() => void handleDeleteGroup(group.id)}
+                    onClick={() => void handleDeleteGroup(group)}
                     disabled={loading}
                     className="rounded-lg p-2 text-red-500 hover:bg-red-50 disabled:opacity-50"
-                    aria-label={`Supprimer ${group.name}`}
+                    aria-label={t("team.deleteGroupAria", { name: group.name })}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

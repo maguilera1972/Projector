@@ -540,6 +540,14 @@ const en: Messages = {
     mailTestSent: "Test email sent to {email}.",
     mailTestFailed: "Sending failed: {error}",
   },
+  team: {
+    deleteGroupConfirm:
+      "Delete the skill group “{name}”?\n\nThe related skill levels will also be removed.",
+    deleteGroupFailed: "Unable to delete the group.",
+    createGroupFailed: "Unable to create the group.",
+    updateFailed: "Update failed.",
+    deleteGroupAria: "Delete {name}",
+  },
   invitations: {
     sectionTitle: "Invitations",
     sectionDescription:

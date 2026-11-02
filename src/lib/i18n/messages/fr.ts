@@ -544,6 +544,14 @@ const fr = {
     mailTestSent: "E-mail de test envoyé à {email}.",
     mailTestFailed: "Échec de l'envoi : {error}",
   },
+  team: {
+    deleteGroupConfirm:
+      "Supprimer le groupe de compétences « {name} » ?\n\nLes niveaux de compétence associés seront aussi supprimés.",
+    deleteGroupFailed: "Suppression du groupe impossible.",
+    createGroupFailed: "Création du groupe impossible.",
+    updateFailed: "Mise à jour impossible.",
+    deleteGroupAria: "Supprimer {name}",
+  },
   invitations: {
     sectionTitle: "Invitations",
     sectionDescription:

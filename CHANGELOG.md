@@ -11,6 +11,9 @@ Les nouvelles entrées s'ajoutent **en haut**, juste sous ce paragraphe.
 
 ### Corrigé
 
+- Équipe : impossible de supprimer un groupe de compétences (« Groupe introuvable. » et groupe toujours affiché). Next.js embarque le store dans plusieurs bundles (pages, routes API), chacun avec son propre cache mémoire de la base : la page affichait une copie périmée. Le cache et le verrou d'écriture sont désormais partagés dans tout le processus et rechargés si le fichier change sur disque ; une base illisible n'est plus remplacée par une base vide.
+- Suppression d'un groupe idempotente (un groupe déjà supprimé est traité comme un succès), avec nettoyage des niveaux de compétence associés ; masquage immédiat dans l'interface, resynchronisation après rafraîchissement, page Équipe rendue dynamiquement et erreurs de suppression de compétence affichées (messages traduits en 5 langues).
+
 - Administration Microsoft Teams & Copilot : faux « Permissions manquantes » après un consentement administrateur — le jeton d'application Graph mis en cache (jusqu'à une heure) n'était jamais renouvelé, même avec « Revérifier ». Le jeton est désormais réutilisé 10 minutes au plus, renouvelé automatiquement si une permission semble absente, et « Revérifier les permissions » en demande toujours un nouveau.
 - Message générique « Une erreur est survenue. » dans l'administration : Cloudflare remplaçait le corps des réponses HTTP 502 (échecs Graph) par du texte brut. Les routes d'intégration renvoient maintenant 424 (échec Graph) ou 409 (fonctionnalité indisponible), et l'interface affiche le statut HTTP et le message réel de l'erreur.
 

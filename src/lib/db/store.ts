@@ -204,16 +204,44 @@ function resolveDbFile(): string {
 
 const DB_FILE = resolveDbFile();
 
-/** Sérialise les mutations pour éviter les courses lecture/écriture concurrentes. */
-let writeChain: Promise<void> = Promise.resolve();
+/**
+ * État partagé par toutes les copies de ce module dans le processus : Next.js embarque
+ * le store dans plusieurs bundles (pages, routes API), chacun avec ses propres variables
+ * de module. Sans état commun, une page garderait une copie périmée de la base.
+ */
+interface StoreState {
+  memoryDb: Database | null;
+  diskStamp: string | null;
+  writeChain: Promise<void>;
+}
 
+const STORE_STATE_KEY = Symbol.for("projector.db.storeState");
+const globalStore = globalThis as typeof globalThis & {
+  [STORE_STATE_KEY]?: StoreState;
+};
+const storeState: StoreState = (globalStore[STORE_STATE_KEY] ??= {
+  memoryDb: null,
+  diskStamp: null,
+  writeChain: Promise.resolve(),
+});
+
+/** Sérialise les mutations pour éviter les courses lecture/écriture concurrentes. */
 function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
-  const run = writeChain.then(fn, fn);
-  writeChain = run.then(
+  const run = storeState.writeChain.then(fn, fn);
+  storeState.writeChain = run.then(
     () => undefined,
     () => undefined,
   );
   return run;
+}
+
+async function readDiskStamp(): Promise<string | null> {
+  try {
+    const stat = await fs.stat(DB_FILE);
+    return `${stat.mtimeMs}:${stat.size}`;
+  } catch {
+    return null;
+  }
 }
 
 export function getActiveDatabasePath(): string {
@@ -422,10 +450,11 @@ function stripPassword(user: DbUser): User {
 }
 
 async function loadDatabaseFromDisk(): Promise<Database> {
+  let raw: string;
   try {
-    const raw = await fs.readFile(DB_FILE, "utf-8");
-    return normalizeDatabase(JSON.parse(raw) as Partial<Database>);
-  } catch {
+    raw = await fs.readFile(DB_FILE, "utf-8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     const db: Database = {
       version: 2,
       users: [
@@ -468,6 +497,7 @@ async function loadDatabaseFromDisk(): Promise<Database> {
     await persistDatabaseAtomic(db);
     return db;
   }
+  return normalizeDatabase(JSON.parse(raw) as Partial<Database>);
 }
 
 async function persistDatabaseAtomic(db: Database): Promise<void> {
@@ -498,6 +528,7 @@ async function persistDatabaseAtomic(db: Database): Promise<void> {
       `Écriture base de données incohérente (${DB_FILE}). Les modifications n'ont pas été persistées.`,
     );
   }
+  storeState.diskStamp = await readDiskStamp();
 
   // Marque la base locale comme source de vérité (jamais écrasée par data/).
   if (DB_FILE === getFallbackDbFile()) {
@@ -512,21 +543,32 @@ async function persistDatabaseAtomic(db: Database): Promise<void> {
   }
 }
 
-/** Cache mémoire process-local + file d'attente pour sérialiser les mutations. */
-let memoryDb: Database | null = null;
+/**
+ * Cache mémoire, rechargé dès que le fichier a changé sur disque (autre processus,
+ * restauration). À appeler sous verrou d'écriture.
+ */
+async function loadCurrentDatabase(): Promise<Database> {
+  const stamp = await readDiskStamp();
+  if (storeState.memoryDb && stamp !== null && stamp === storeState.diskStamp) {
+    return storeState.memoryDb;
+  }
+  try {
+    storeState.memoryDb = await loadDatabaseFromDisk();
+    storeState.diskStamp = await readDiskStamp();
+  } catch (error) {
+    if (!storeState.memoryDb) throw error;
+    console.error(`[store] Relecture de ${DB_FILE} impossible, cache conservé :`, error);
+  }
+  return storeState.memoryDb;
+}
 
 async function readDatabase(): Promise<Database> {
-  return withWriteLock(async () => {
-    if (!memoryDb) {
-      memoryDb = await loadDatabaseFromDisk();
-    }
-    return memoryDb;
-  });
+  return withWriteLock(loadCurrentDatabase);
 }
 
 async function writeDatabase(db: Database): Promise<void> {
   await withWriteLock(async () => {
-    memoryDb = db;
+    storeState.memoryDb = db;
     await persistDatabaseAtomic(db);
   });
   flushNotifications(db);
@@ -539,16 +581,14 @@ async function writeDatabase(db: Database): Promise<void> {
 async function mutateDatabase<T>(
   mutator: (db: Database) => T | Promise<T>,
 ): Promise<T> {
-  const result = await withWriteLock(async () => {
-    if (!memoryDb) {
-      memoryDb = await loadDatabaseFromDisk();
-    }
-    const value = await mutator(memoryDb);
-    await persistDatabaseAtomic(memoryDb);
-    return value;
+  const { db, value } = await withWriteLock(async () => {
+    const current = await loadCurrentDatabase();
+    const result = await mutator(current);
+    await persistDatabaseAtomic(current);
+    return { db: current, value: result };
   });
-  if (memoryDb) flushNotifications(memoryDb);
-  return result;
+  flushNotifications(db);
+  return value;
 }
 
 export async function authenticateUser(
@@ -3550,7 +3590,7 @@ export async function acceptInvitation(
 
 export async function listResourceGroups(): Promise<ResourceGroup[]> {
   const db = await readDatabase();
-  return db.resourceGroups.sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  return [...db.resourceGroups].sort((a, b) => a.name.localeCompare(b.name, "fr"));
 }
 
 export async function createResourceGroup(
@@ -3597,15 +3637,17 @@ export async function updateResourceGroup(
   return group;
 }
 
+/**
+ * Supprime un groupe et les compétences qui le référencent (idempotent).
+ * Retourne false si le groupe n'existait déjà plus.
+ */
 export async function deleteResourceGroup(id: string): Promise<boolean> {
-  const db = await readDatabase();
-  const index = db.resourceGroups.findIndex((item) => item.id === id);
-  if (index === -1) return false;
-
-  db.resourceGroups.splice(index, 1);
-  db.userSkills = db.userSkills.filter((skill) => skill.groupId !== id);
-  await writeDatabase(db);
-  return true;
+  return mutateDatabase((db) => {
+    const before = db.resourceGroups.length;
+    db.resourceGroups = db.resourceGroups.filter((item) => item.id !== id);
+    db.userSkills = db.userSkills.filter((skill) => skill.groupId !== id);
+    return db.resourceGroups.length !== before;
+  });
 }
 
 export async function listUserSkills(): Promise<UserSkill[]> {
@@ -3652,16 +3694,13 @@ export async function removeUserSkill(
   userId: string,
   groupId: string,
 ): Promise<boolean> {
-  const db = await readDatabase();
-  const index = db.userSkills.findIndex(
-    (skill) => skill.userId === userId && skill.groupId === groupId,
-  );
-
-  if (index === -1) return false;
-
-  db.userSkills.splice(index, 1);
-  await writeDatabase(db);
-  return true;
+  return mutateDatabase((db) => {
+    const before = db.userSkills.length;
+    db.userSkills = db.userSkills.filter(
+      (skill) => !(skill.userId === userId && skill.groupId === groupId),
+    );
+    return db.userSkills.length !== before;
+  });
 }
 
 export async function listResourceProfiles(): Promise<ResourceProfile[]> {

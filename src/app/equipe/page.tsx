@@ -11,6 +11,8 @@ import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 import { getRequestTranslator } from "@/lib/i18n/server";
 
+export const dynamic = "force-dynamic";
+
 export default async function EquipePage() {
   const { t } = await getRequestTranslator();
   const user = await getSessionUser();

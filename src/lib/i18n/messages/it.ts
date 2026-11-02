@@ -541,6 +541,14 @@ const it: Messages = {
     mailTestSent: "E-mail di prova inviata a {email}.",
     mailTestFailed: "Invio non riuscito: {error}",
   },
+  team: {
+    deleteGroupConfirm:
+      "Eliminare il gruppo di competenze «{name}»?\n\nVerranno eliminati anche i livelli di competenza associati.",
+    deleteGroupFailed: "Impossibile eliminare il gruppo.",
+    createGroupFailed: "Impossibile creare il gruppo.",
+    updateFailed: "Aggiornamento non riuscito.",
+    deleteGroupAria: "Elimina {name}",
+  },
   invitations: {
     sectionTitle: "Inviti",
     sectionDescription:

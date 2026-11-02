@@ -52,9 +52,5 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   const { id } = await params;
   const deleted = await deleteResourceGroup(id);
 
-  if (!deleted) {
-    return NextResponse.json({ error: "Groupe introuvable." }, { status: 404 });
-  }
-
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, alreadyDeleted: !deleted });
 }

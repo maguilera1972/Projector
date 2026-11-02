@@ -541,6 +541,14 @@ const de: Messages = {
     mailTestSent: "Test-E-Mail an {email} gesendet.",
     mailTestFailed: "Versand fehlgeschlagen: {error}",
   },
+  team: {
+    deleteGroupConfirm:
+      "Kompetenzgruppe „{name}“ löschen?\n\nDie zugehörigen Kompetenzstufen werden ebenfalls entfernt.",
+    deleteGroupFailed: "Die Gruppe konnte nicht gelöscht werden.",
+    createGroupFailed: "Die Gruppe konnte nicht erstellt werden.",
+    updateFailed: "Aktualisierung fehlgeschlagen.",
+    deleteGroupAria: "{name} löschen",
+  },
   invitations: {
     sectionTitle: "Einladungen",
     sectionDescription:
