@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
-import { getIntegrationSettings, updateIntegrationSettings } from "@/lib/db/store";
+import { getIntegrationSettings, listUsers, updateIntegrationSettings } from "@/lib/db/store";
+import { getTeamsAppCatalogIdFromEnv } from "@/lib/integrations/config";
 import { describeError } from "@/lib/integrations/graph";
 import { graphFailure, HTTP_UPSTREAM_FAILED, jsonError, requireAdmin } from "@/lib/integrations/http";
-import { findPersonalInstallation, sendTeamsActivity } from "@/lib/teams/activity";
+import { discoverCatalogId, installForAllUsers, sendTeamsActivity } from "@/lib/teams/activity";
 import { cancelTeamsMeeting, createTeamsMeeting } from "@/lib/teams/meetings";
 import type { Project } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-type TestAction = "activity" | "meeting" | "discoverCatalog";
+type TestAction = "activity" | "meeting" | "discoverCatalog" | "installAll";
 
 function tomorrowAt(hour: number): string {
   const date = new Date(Date.now() + 24 * 3600_000);
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
   const { actor, it } = guard.value;
   const body = (await request.json().catch(() => null)) as { action?: TestAction } | null;
   const action = body?.action;
-  if (action !== "activity" && action !== "meeting" && action !== "discoverCatalog") {
+  if (action !== "activity" && action !== "meeting" && action !== "discoverCatalog" && action !== "installAll") {
     return jsonError(it("errors.invalidBody"), 400);
   }
   const settings = await getIntegrationSettings();
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
       if (!result.ok) {
         return NextResponse.json({ ok: false, reason: result.reason, error: result.error }, { status: HTTP_UPSTREAM_FAILED });
       }
-      return NextResponse.json({ ok: true, installedNow: result.installedNow ?? false });
+      return NextResponse.json({ ok: true, installedNow: result.installedNow ?? false, message: it("admin.activitySent") });
     }
     case "meeting": {
       const probe = {
@@ -83,17 +84,39 @@ export async function POST(request: Request) {
       }
     }
     case "discoverCatalog": {
-      if (!actor.entraOid) return jsonError(it("errors.notLinked"), 400);
       try {
-        const installation = await findPersonalInstallation(actor.entraOid);
-        if (!installation) return NextResponse.json({ ok: false, found: false });
+        const found = await discoverCatalogId(actor.entraOid);
+        if (!found) {
+          return NextResponse.json({ ok: false, found: false, message: it("admin.catalogNotFound") });
+        }
         await updateIntegrationSettings((current) => {
-          current.teamsAppCatalogId = installation.catalogId;
+          current.teamsAppCatalogId = found.catalogId;
         });
-        return NextResponse.json({ ok: true, found: true, catalogId: installation.catalogId });
+        return NextResponse.json({
+          ok: true,
+          found: true,
+          catalogId: found.catalogId,
+          message: it("admin.catalogFound", { id: found.catalogId, source: found.source }),
+        });
       } catch (error) {
         return graphFailure(error);
       }
+    }
+    case "installAll": {
+      const catalogId = settings.teamsAppCatalogId ?? getTeamsAppCatalogIdFromEnv();
+      if (!catalogId) return jsonError(it("admin.catalogUnknown"), 400);
+      const report = await installForAllUsers(await listUsers(), catalogId);
+      const failures = report.failed.map((item) => `${item.name} : ${item.error}`).join(" ; ");
+      return NextResponse.json({
+        ok: report.failed.length === 0,
+        report,
+        message:
+          it("admin.installAllResult", {
+            installed: report.installed.length,
+            already: report.already.length,
+            failed: report.failed.length,
+          }) + (failures ? ` — ${failures}` : ""),
+      });
     }
     default: {
       const exhaustive: never = action;

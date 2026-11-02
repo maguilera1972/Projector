@@ -18,14 +18,19 @@ SRC="$ROOT/teams-app"
 OUT_DIR="$ROOT/dist/teams-app"
 WITH_COPILOT=0
 CHECK_SCHEMA=1
+WITHOUT_BOT="${TEAMS_WITHOUT_BOT:-0}"
 SCHEMA_URL="https://developer.microsoft.com/json-schemas/teams/v1.19/MicrosoftTeams.schema.json"
 
 usage() {
   cat <<'USAGE'
-Usage : scripts/teams/build-teams-app.sh [--with-copilot] [--out <dossier>] [--no-schema]
+Usage : scripts/teams/build-teams-app.sh [--with-copilot] [--without-bot] [--out <dossier>] [--no-schema]
 
   --with-copilot  Inclut l'agent déclaratif Copilot (teams-app/copilot/*).
                   Implicite si TEAMS_OAUTH_REFERENCE_ID est défini.
+  --without-bot   Paquet sans bot ni extension de messagerie (projector-teams-sans-bot.zip) :
+                  tant que la ressource Azure Bot n'existe pas, Teams ne peut pas créer la
+                  conversation du bot et refuse l'installation et les notifications
+                  (« CreateThreadS2SRequest »). Onglets, SSO et flux d'activité restent inclus.
   --out <dossier> Dossier de sortie (défaut : dist/teams-app).
   --no-schema     Ne valide pas le manifeste contre le schéma Microsoft (hors ligne).
 
@@ -38,6 +43,7 @@ USAGE
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --with-copilot) WITH_COPILOT=1 ;;
+    --without-bot) WITHOUT_BOT=1 ;;
     --no-schema) CHECK_SCHEMA=0 ;;
     --out)
       [[ $# -ge 2 ]] || { echo "Erreur : --out exige un dossier." >&2; exit 64; }
@@ -104,7 +110,7 @@ if [[ "$WITH_COPILOT" == 1 ]]; then
 fi
 
 # Manifeste : surcharges (ID, version, bot, hôte), copilotAgents, substitutions et validations.
-SRC="$SRC" STAGE="$STAGE" WITH_COPILOT="$WITH_COPILOT" node <<'NODE'
+SRC="$SRC" STAGE="$STAGE" WITH_COPILOT="$WITH_COPILOT" WITHOUT_BOT="$WITHOUT_BOT" node <<'NODE'
 const fs = require("fs");
 const path = require("path");
 
@@ -133,6 +139,11 @@ if (process.env.TEAMS_APP_VERSION) manifest.version = process.env.TEAMS_APP_VERS
 if (process.env.TEAMS_BOT_APP_ID) {
   for (const bot of manifest.bots ?? []) bot.botId = process.env.TEAMS_BOT_APP_ID;
   for (const extension of manifest.composeExtensions ?? []) extension.botId = process.env.TEAMS_BOT_APP_ID;
+}
+
+if (process.env.WITHOUT_BOT === "1") {
+  delete manifest.bots;
+  delete manifest.composeExtensions;
 }
 
 if (withCopilot) {
@@ -179,7 +190,8 @@ for (const agent of manifest.copilotAgents?.declarativeAgents ?? []) {
 fs.writeFileSync(path.join(stage, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 console.log(
   `Manifeste : id ${manifest.id}, version ${manifest.version}, hôte ${host}` +
-    (withCopilot ? ", agent Copilot inclus" : ""),
+    (withCopilot ? ", agent Copilot inclus" : "") +
+    (process.env.WITHOUT_BOT === "1" ? ", sans bot" : ""),
 );
 NODE
 
@@ -209,7 +221,7 @@ PY
   fi
 fi
 
-ZIP="$OUT_DIR/projector-teams.zip"
+ZIP="$OUT_DIR/projector-teams$([[ "$WITHOUT_BOT" == 1 ]] && echo "-sans-bot").zip"
 rm -f "$ZIP"
 if command -v zip >/dev/null; then
   (cd "$STAGE" && zip -q -X -r "$ZIP" .)

@@ -9,6 +9,17 @@ Les nouvelles entrées s'ajoutent **en haut**, juste sous ce paragraphe.
 
 ## 2026-11-02
 
+### Ajouté
+
+- Installation automatique de l'application Teams PROJECTOR pour chaque utilisateur lié à Entra avant l'envoi d'une notification (`TeamsAppInstallation.ReadWriteSelfForUser.All`), avec mise en cache de l'état d'installation et nouvel essai unique de la notification.
+- Administration : action « Installer l'app pour tous les utilisateurs Entra » avec bilan (installées, déjà installées, échecs avec motif), en 5 langues.
+- Paquet Teams « sans bot » (`scripts/teams/build-teams-app.sh --without-bot` → `projector-teams-sans-bot.zip`, version 1.0.1) à utiliser tant que la ressource Azure Bot n'existe pas.
+
+### Corrigé (Teams)
+
+- Diagnostic des échecs Teams : l'erreur Graph `CreateThreadS2SRequest` (conversation du bot impossible à créer faute de ressource Azure Bot), l'absence de licence Teams et l'application non installée sont identifiées et expliquées, au lieu d'un message Graph brut.
+- « Détecter depuis mon installation » : repli sur le catalogue de l'organisation (si `AppCatalog.Read.All` est accordée) et message explicite si l'application est introuvable ; l'ID de catalogue déjà enregistré est conservé.
+
 ### Corrigé
 
 - Équipe : impossible de supprimer un groupe de compétences (« Groupe introuvable. » et groupe toujours affiché). Next.js embarque le store dans plusieurs bundles (pages, routes API), chacun avec son propre cache mémoire de la base : la page affichait une copie périmée. Le cache et le verrou d'écriture sont désormais partagés dans tout le processus et rechargés si le fichier change sur disque ; une base illisible n'est plus remplacée par une base vide.

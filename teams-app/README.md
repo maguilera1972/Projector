@@ -23,3 +23,10 @@ TEAMS_APP_VERSION=1.0.1 TEAMS_OAUTH_REFERENCE_ID=<id> bash scripts/teams/build-t
 
 Mise en place complète (Azure Bot, « Expose an API », permissions, centre d'administration Teams) :
 [`docs/integration-teams-copilot.md`](../docs/integration-teams-copilot.md).
+
+## Paquet sans bot
+
+Tant que la ressource Azure Bot n'est pas créée, utilisez `bash scripts/teams/build-teams-app.sh --without-bot`
+(`dist/teams-app/projector-teams-sans-bot.zip`) : le bot et l'extension de messagerie sont retirés, les onglets,
+le SSO et les notifications du flux d'activité restent disponibles. Sinon Teams refuse l'installation et les
+notifications (`CreateThreadS2SRequest`).

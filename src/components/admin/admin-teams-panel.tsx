@@ -352,6 +352,21 @@ export function AdminTeamsPanel() {
           <button
             type="button"
             disabled={busy !== null}
+            onClick={() => {
+              if (!window.confirm(it("admin.installAllConfirm"))) return;
+              void run("installAll", "/api/admin/integrations/test", {
+                method: "POST",
+                body: JSON.stringify({ action: "installAll" }),
+              });
+            }}
+            className={buttonClass}
+          >
+            {busy === "installAll" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {it("admin.installAll")}
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null}
             onClick={() =>
               void run("meeting", "/api/admin/integrations/test", {
                 method: "POST",

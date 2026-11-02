@@ -654,6 +654,15 @@ node scripts/teams/generate-icons.mjs          # si le logo a changé
 bash scripts/teams/build-teams-app.sh          # → dist/teams-app/projector-teams.zip
 ```
 
+> **Tant que la ressource Azure Bot n'existe pas**, importez le paquet **sans bot**
+> (`bash scripts/teams/build-teams-app.sh --without-bot` → `projector-teams-sans-bot.zip`). Avec le paquet
+> complet, Teams tente de créer la conversation 1:1 du bot à l'installation et lors de chaque notification ;
+> sans enregistrement Bot Framework, cela échoue (`400 BadRequest — Failed to execute Skype backend request
+> CreateThreadS2SRequest`) : l'application n'est alors installée pour personne et aucune notification
+> n'arrive. Une fois l'Azure Bot créé, importez le paquet complet avec une version supérieure
+> (ex. `TEAMS_APP_VERSION=1.1.0 bash scripts/teams/build-teams-app.sh`). Chaque mise à jour du paquet doit
+> incrémenter `version`.
+
 1. Centre d'administration Teams → **Applications Teams** → **Gérer les applications** →
    **Charger une nouvelle application** → `projector-teams.zip`.
 2. **Stratégies d'autorisation** (ou « Gérer les applications » › disponibilité) : autoriser PROJECTOR pour
