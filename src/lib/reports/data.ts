@@ -10,7 +10,9 @@ import {
   listProjectBaselines,
   listProjectDocumentsByProject,
   listResourceProfiles,
+  listTaskEstimateRevisions,
   listTasks,
+  listTimeEntries,
 } from "@/lib/db/store";
 import type {
   Activity,
@@ -22,6 +24,8 @@ import type {
   ProjectDocument,
   ResourceProfile,
   Task,
+  TaskEstimateRevision,
+  TimeEntry,
 } from "@/types";
 
 export interface ProjectReportData {
@@ -39,6 +43,10 @@ export interface ProjectReportData {
   /** Budget validé à l'origine (premier « budget.approved » du journal). */
   initialBudget?: number;
   initialBudgetApprovedAt?: string;
+  /** Saisies de temps actives du projet. */
+  timeEntries: TimeEntry[];
+  /** Révisions de la charge prévue des tâches. */
+  estimateRevisions: TaskEstimateRevision[];
 }
 
 export interface ReportDataset {
@@ -52,11 +60,13 @@ export async function loadReportDataset(
   projects: Project[],
   portfolios: Portfolio[],
 ): Promise<ReportDataset> {
-  const [allTasks, allActivities, users, resourceProfiles] = await Promise.all([
+  const [allTasks, allActivities, users, resourceProfiles, allEntries, allRevisions] = await Promise.all([
     listTasks(),
     listActivities(),
     listAllUsers(),
     listResourceProfiles(),
+    listTimeEntries(),
+    listTaskEstimateRevisions({}),
   ]);
   const portfolioById = new Map(portfolios.map((portfolio) => [portfolio.id, portfolio]));
 
@@ -101,6 +111,8 @@ export async function loadReportDataset(
               ? undefined
               : project.budget,
         initialBudgetApprovedAt: firstApproval?.createdAt ?? project.budgetApprovedAt,
+        timeEntries: allEntries.filter((entry) => entry.projectId === project.id),
+        estimateRevisions: allRevisions.filter((revision) => revision.projectId === project.id),
       };
     }),
   );

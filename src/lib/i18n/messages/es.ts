@@ -217,7 +217,7 @@ const es: Messages = {
     selectUser: "Seleccionar un usuario",
     chefHelp: "Solo el jefe de proyecto podrá asignar las tareas del proyecto.",
     startDate: "Fecha de inicio *",
-    endDate: "Fecha de fin prevista",
+    endDate: "Fecha de fin prevista *",
     budget: "Presupuesto estimado (CHF)",
     budgetPlaceholder: "Requiere validación del mandante",
     hours: "Bolsa de horas a tanto alzado",

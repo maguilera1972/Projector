@@ -116,9 +116,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         status: body.status,
         progress: body.progress,
         comments: body.comments,
-        startDate: body.startDate,
-        dueDate: body.dueDate,
-        durationDays: body.durationDays,
+        ...("startDate" in body ? { startDate: body.startDate } : {}),
+        ...("dueDate" in body ? { dueDate: body.dueDate } : {}),
+        ...("durationDays" in body ? { durationDays: body.durationDays } : {}),
       },
       user.id,
     );

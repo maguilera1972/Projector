@@ -6,6 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { TaskAssigneeSelect } from "@/components/task/task-assignee-select";
 import { TaskEditDialog } from "@/components/task/task-edit-dialog";
 import { TaskScheduleBadge } from "@/components/task/task-schedule-badge";
+import { QuickTimeDialog } from "@/components/time/quick-time-dialog";
+import { TaskTimeCell } from "@/components/time/task-time-cell";
+import { useTimeI18n } from "@/components/time/use-time-i18n";
 import type { AssigneeOption } from "@/lib/users";
 import type { Project, Task, TaskStatus } from "@/types";
 import { useI18n } from "@/lib/i18n/client";
@@ -26,6 +29,10 @@ interface TasksTableProps {
   projects: Project[];
   users: AssigneeOption[];
   canAssignByProjectId: Record<string, boolean>;
+  /** Minutes saisies par tâche. */
+  timeByTask?: Record<string, number>;
+  /** Tâches sur lesquelles l'utilisateur peut saisir du temps. */
+  canLogTaskIds?: string[];
 }
 
 export function TasksTable({
@@ -33,9 +40,14 @@ export function TasksTable({
   projects,
   users,
   canAssignByProjectId,
+  timeByTask = {},
+  canLogTaskIds = [],
 }: TasksTableProps) {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [loggingTask, setLoggingTask] = useState<Task | null>(null);
   const { t } = useI18n();
+  const { tt } = useTimeI18n();
+  const canLog = new Set(canLogTaskIds);
 
   return (
     <>
@@ -52,6 +64,9 @@ export function TasksTable({
               </th>
               <th className="px-6 py-4 font-semibold text-slate-700">
                 {t("tasksPage.progress")}
+              </th>
+              <th className="px-6 py-4 font-semibold text-slate-700" title={tt("common.columnTitle")}>
+                {tt("common.column")}
               </th>
               <th className="px-6 py-4 font-semibold text-slate-700">{t("tasksPage.assignee")}</th>
               <th className="px-6 py-4 font-semibold text-slate-700">{t("tasksPage.status")}</th>
@@ -94,6 +109,13 @@ export function TasksTable({
                     {task.progress ?? 0}%
                   </td>
                   <td className="px-6 py-4">
+                    <TaskTimeCell
+                      minutes={timeByTask[task.id] ?? 0}
+                      estimatedHours={task.estimatedHours}
+                      onLog={canLog.has(task.id) ? () => setLoggingTask(task) : undefined}
+                    />
+                  </td>
+                  <td className="px-6 py-4">
                     <TaskAssigneeSelect
                       taskId={task.id}
                       assigneeId={task.assigneeId}
@@ -118,6 +140,12 @@ export function TasksTable({
         taskId={editingTaskId}
         open={editingTaskId !== null}
         onClose={() => setEditingTaskId(null)}
+      />
+
+      <QuickTimeDialog
+        taskId={loggingTask?.id ?? null}
+        taskTitle={loggingTask?.title}
+        onClose={() => setLoggingTask(null)}
       />
     </>
   );

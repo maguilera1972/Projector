@@ -640,6 +640,9 @@
           "dueDate": { "type": "string", "nullable": true },
           "overdue": { "type": "boolean" },
           "assignee": { "type": "string", "nullable": true },
+          "plannedHours": { "type": "number", "nullable": true, "description": "Planned effort (hours) set by the project manager." },
+          "initialPlannedHours": { "type": "number", "nullable": true, "description": "Initial planned effort (hours) before re-estimations." },
+          "timeSpentHours": { "type": "number", "description": "Actual time logged on the task (hours, all members)." },
           "url": { "type": "string" }
         }
       },

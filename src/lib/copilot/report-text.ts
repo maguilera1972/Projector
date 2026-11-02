@@ -49,6 +49,15 @@ function blockToMarkdown(block: ReportBlock): string[] {
         ...block.rows.map((row) => `| ${row.map(cellText).join(" | ")} |`),
       ];
     }
+    case "lineChart":
+      return [
+        ...block.series.map((series) => {
+          const last = [...series.values].reverse().find((value) => value !== null);
+          return `- ${series.label} : ${last ?? "—"} ${block.unit}`;
+        }),
+        ...(block.reference ? [`- ${block.reference.label} : ${block.reference.value} ${block.unit}`] : []),
+        ...(block.caption ? [block.caption] : []),
+      ];
     case "alerts":
       return block.items.map((item) => `- ⚠ ${item.text}`);
     case "paragraph":

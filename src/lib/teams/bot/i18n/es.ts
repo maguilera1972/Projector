@@ -52,6 +52,8 @@ const es: BotMessages = {
     refreshPersonalOnly: "Actualice esta tarjeta desde su chat personal con PROJECTOR.",
   },
   tasks: {
+    timeSpent: "Tiempo dedicado: {spent}",
+    timeSpentPlanned: "Tiempo dedicado: {spent} / {planned} h previstas",
     title: "Mis tareas abiertas ({count})",
     empty: "No hay tareas abiertas. ¡Enhorabuena!",
     complete: "Completar",

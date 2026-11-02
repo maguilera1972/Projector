@@ -217,7 +217,7 @@ const en: Messages = {
     selectUser: "Select a user",
     chefHelp: "Only the project manager can assign the project's tasks.",
     startDate: "Start date *",
-    endDate: "Planned end date",
+    endDate: "Planned end date *",
     budget: "Estimated budget (CHF)",
     budgetPlaceholder: "Sponsor approval required",
     hours: "Flat-rate hours",

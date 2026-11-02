@@ -6,6 +6,8 @@ import { Loader2, Play, Plus, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { TaskScheduleBadge } from "@/components/task/task-schedule-badge";
+import { TaskTimeSection } from "@/components/time/task-time-section";
+import { useTimeI18n } from "@/components/time/use-time-i18n";
 import type { TaskDetailContext } from "@/lib/tasks/access";
 import { toDateInputValue } from "@/lib/tasks/dates";
 import { formatDate } from "@/lib/utils";
@@ -31,6 +33,7 @@ const statusOptions: TaskStatus[] = [
 
 export function TaskEditDialog({ taskId, open, onClose }: TaskEditDialogProps) {
   const router = useRouter();
+  const { tt } = useTimeI18n();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -612,6 +615,16 @@ export function TaskEditDialog({ taskId, open, onClose }: TaskEditDialogProps) {
                     </button>
                   </div>
                 )}
+              </section>
+
+              <section>
+                <h3 className="mb-3 text-sm font-semibold text-slate-900">
+                  {tt("common.title")}
+                </h3>
+                <TaskTimeSection
+                  taskId={context.task.id}
+                  onChanged={() => router.refresh()}
+                />
               </section>
 
               <section>

@@ -3,7 +3,8 @@ import { getPhasesForApproach } from "@/lib/hermes/phases";
 import { buildQualityGateChecklist } from "@/lib/hermes/quality-gates";
 import { getQualityGateForPhase } from "@/lib/hermes/referential";
 import { localizeQualityGateLabel, localizeScenario, localizeTask } from "@/lib/hermes/i18n";
-import type { Locale } from "@/lib/i18n/config";
+import { toIntlLocale, type Locale } from "@/lib/i18n/config";
+import { buildProjectTimeAnalysis, type ProjectTimeAnalysis } from "@/lib/time-tracking/summary";
 import { getTranslator, tDynamic, type Translator } from "@/lib/i18n/translate";
 import type {
   HermesPhaseId,
@@ -409,6 +410,8 @@ function buildStatusReport(ctx: BuildContext): ReportSection[] {
     ],
   });
 
+  sections.push(...timeUsageSections(ctx, data, { detail: false }));
+
   return sections;
 }
 
@@ -602,6 +605,7 @@ function buildBudgetReport(ctx: BuildContext): ReportSection[] {
         },
       ],
     },
+    ...timeUsageSections(ctx, data, { detail: true }),
     {
       title: ctx.t("budget.secAlerts"),
       blocks: [
@@ -984,6 +988,27 @@ function buildResourcesReport(ctx: BuildContext): ReportSection[] {
     byPerson.set(item.assigneeId!, list);
   }
   const capacity = new Map(ctx.dataset.resourceProfiles.map((profile) => [profile.userId, profile.weeklyCapacityPercent]));
+  const minutesByUser = new Map<string, number>();
+  const plannedByUser = new Map<string, number>();
+  for (const data of ctx.dataset.projects) {
+    for (const entry of data.timeEntries) {
+      if (entry.deletedAt || !matchesPeriod(ctx, entry.date)) continue;
+      minutesByUser.set(entry.userId, (minutesByUser.get(entry.userId) ?? 0) + entry.durationMinutes);
+    }
+    for (const task of data.tasks) {
+      if (!task.assigneeId || !task.estimatedHours) continue;
+      plannedByUser.set(task.assigneeId, (plannedByUser.get(task.assigneeId) ?? 0) + task.estimatedHours);
+    }
+  }
+  const hoursOf = (userId: string) => Math.round(((minutesByUser.get(userId) ?? 0) / 60) * 100) / 100;
+  const timePeople = [...new Set([...minutesByUser.keys(), ...plannedByUser.keys()])]
+    .map((userId) => ({
+      userId,
+      name: userName(ctx, userId),
+      hours: hoursOf(userId),
+      planned: Math.round((plannedByUser.get(userId) ?? 0) * 100) / 100,
+    }))
+    .sort((a, b) => b.hours - a.hours || a.name.localeCompare(b.name, ctx.locale));
   const people = [...byPerson.entries()]
     .map(([userId, list]) => {
       const open = list.filter((item) => item.status !== "termine");
@@ -1053,6 +1078,7 @@ function buildResourcesReport(ctx: BuildContext): ReportSection[] {
             { label: ctx.t("resources.overdue"), width: 0.9, align: "right" },
             { label: ctx.t("resources.avgProgress"), width: 1, align: "right" },
             { label: ctx.t("resources.capacity"), width: 1, align: "right" },
+            { label: ctx.t("time.colHours"), width: 1, align: "right" },
           ],
           rows: people.map((person) => [
             cell(person.name, undefined, true),
@@ -1062,11 +1088,39 @@ function buildResourcesReport(ctx: BuildContext): ReportSection[] {
             cell(String(person.overdue.length), person.overdue.length > 0 ? "red" : undefined),
             ctx.fmt.percent(person.avg),
             capacity.has(person.userId) ? ctx.fmt.percent(capacity.get(person.userId)) : ctx.t("common.none"),
+            hoursLabel(ctx, hoursOf(person.userId)),
           ]),
           empty: ctx.t("resources.noAssignments"),
         },
       ],
     },
+    {
+      title: ctx.t("time.secByPerson"),
+      description: ctx.t("time.periodNote"),
+      blocks: [
+        {
+          kind: "table",
+          columns: [
+            { label: ctx.t("time.colPerson"), width: 2.2 },
+            { label: ctx.t("time.colPlannedLoad"), width: 1.2, align: "right" },
+            { label: ctx.t("time.colHours"), width: 1.2, align: "right" },
+          ],
+          rows: timePeople.map((person) => [
+            cell(person.name, undefined, true),
+            hoursLabel(ctx, person.planned),
+            cell(
+              hoursLabel(ctx, person.hours),
+              person.planned > 0 && person.hours > person.planned ? "orange" : undefined,
+              true,
+            ),
+          ]),
+          empty: ctx.t("time.noData"),
+        },
+      ],
+    },
+    ...(ctx.multi || !ctx.dataset.projects[0]
+      ? []
+      : timeUsageSections(ctx, ctx.dataset.projects[0], { detail: false })),
     {
       title: ctx.t("resources.secLate"),
       blocks: [
@@ -1112,6 +1166,256 @@ function buildResourcesReport(ctx: BuildContext): ReportSection[] {
       ],
     },
   ];
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Utilisation du temps (charges prévues / temps passé)                */
+/* ------------------------------------------------------------------ */
+
+function hoursLabel(ctx: BuildContext, value: number): string {
+  return `${ctx.fmt.number(value)} h`;
+}
+
+function signedHoursLabel(ctx: BuildContext, value: number): string {
+  if (value === 0) return hoursLabel(ctx, 0);
+  return `${value > 0 ? "+" : "−"}${hoursLabel(ctx, Math.abs(value))}`;
+}
+
+function timeAnalysisOf(ctx: BuildContext, data: ProjectReportData): ProjectTimeAnalysis {
+  return buildProjectTimeAnalysis({
+    project: data.project,
+    tasks: data.tasks.map((task) => localizedTask(ctx, task)),
+    entries: data.timeEntries,
+    revisions: data.estimateRevisions,
+    today: ctx.today,
+    userName: (id) => userName(ctx, id),
+    phaseLabel: (phase) => phaseLabel(ctx, phase),
+    phaseOrder: getPhasesForApproach(data.project.approach).map((phase) => phase.id),
+  });
+}
+
+/** Sections « utilisation du temps » d'un projet (graphe cumulé, répartition, réestimations). */
+function timeUsageSections(
+  ctx: BuildContext,
+  data: ProjectReportData,
+  options: { detail: boolean },
+): ReportSection[] {
+  const analysis = timeAnalysisOf(ctx, data);
+  const { period } = analysis;
+  const h = (value: number) => hoursLabel(ctx, value);
+  const shortDate = new Intl.DateTimeFormat(toIntlLocale(ctx.locale), {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    timeZone: "UTC",
+  });
+
+  const overBudget = analysis.budgetHours !== undefined && analysis.forecastHours > analysis.budgetHours;
+  const overPlan = analysis.plannedHours > 0 && analysis.forecastHours > analysis.plannedHours;
+  const alerts: { tone: ReportTone; text: string }[] = [];
+  if (!period.endDefined) {
+    alerts.push({ tone: "orange", text: ctx.t("time.periodUndefined", { date: ctx.fmt.date(period.endDate) }) });
+  }
+  if (overBudget) {
+    alerts.push({
+      tone: "red",
+      text: ctx.t("time.aForecastOverBudget", { forecast: h(analysis.forecastHours), budget: h(analysis.budgetHours!) }),
+    });
+  }
+  if (overPlan) {
+    alerts.push({
+      tone: "orange",
+      text: ctx.t("time.aForecastOverPlan", {
+        value: h(Math.round((analysis.forecastHours - analysis.plannedHours) * 100) / 100),
+      }),
+    });
+  }
+  if (analysis.unplannedWithTime > 0) {
+    alerts.push({ tone: "orange", text: ctx.t("time.aUnplannedWithTime", { count: analysis.unplannedWithTime }) });
+  }
+
+  const hasData = analysis.entryCount > 0 || analysis.plannedHours > 0 || analysis.initialHours > 0;
+  const showInitial = analysis.series.some(
+    (point) => Math.abs(point.initialCumHours - point.plannedCumHours) > 0.01,
+  );
+  const usage: ReportSection = {
+    title: ctx.t("time.secUsage"),
+    description: ctx.t("time.periodLine", {
+      from: ctx.fmt.date(period.startDate),
+      to: ctx.fmt.date(period.endDate),
+      pct: period.elapsedPercent,
+    }),
+    blocks: [
+      {
+        kind: "kpis",
+        items: [
+          { label: ctx.t("time.initial"), value: h(analysis.initialHours) },
+          { label: ctx.t("time.planned"), value: h(analysis.plannedHours), tone: "brand" },
+          { label: ctx.t("time.actual"), value: h(analysis.actualHours) },
+          { label: ctx.t("time.remaining"), value: h(analysis.remainingHours) },
+          {
+            label: ctx.t("time.forecast"),
+            value: h(analysis.forecastHours),
+            tone: overBudget ? "red" : overPlan ? "orange" : "green",
+          },
+          {
+            label: ctx.t("time.budgetHours"),
+            value: analysis.budgetHours !== undefined ? h(analysis.budgetHours) : ctx.t("common.none"),
+            hint:
+              analysis.budgetUsedPercent !== undefined
+                ? ctx.t("time.budgetUsed", { pct: analysis.budgetUsedPercent })
+                : undefined,
+          },
+        ],
+      },
+      ...(hasData
+        ? [
+            {
+              kind: "lineChart" as const,
+              labels: analysis.series.map((point) =>
+                shortDate.format(new Date(`${point.start}T12:00:00Z`)),
+              ),
+              unit: "h",
+              series: [
+                {
+                  key: "planned",
+                  label: ctx.t("time.seriesPlanned"),
+                  color: REPORT_COLORS.indigo,
+                  dashed: true,
+                  values: analysis.series.map((point) => point.plannedCumHours),
+                },
+                ...(showInitial
+                  ? [
+                      {
+                        key: "initial",
+                        label: ctx.t("time.seriesInitial"),
+                        color: "#94a3b8",
+                        dashed: true,
+                        values: analysis.series.map((point) => point.initialCumHours),
+                      },
+                    ]
+                  : []),
+                {
+                  key: "actual",
+                  label: ctx.t("time.seriesActual"),
+                  color: REPORT_COLORS.green,
+                  values: analysis.series.map((point) => point.actualCumHours),
+                },
+              ],
+              marker:
+                analysis.todayIndex !== undefined
+                  ? { index: analysis.todayIndex, label: ctx.t("time.today") }
+                  : undefined,
+              reference:
+                analysis.budgetHours !== undefined
+                  ? { value: analysis.budgetHours, label: ctx.t("time.seriesBudget"), color: REPORT_COLORS.red }
+                  : undefined,
+              caption: ctx.t("time.chartCaption"),
+            },
+          ]
+        : [{ kind: "paragraph" as const, text: ctx.t("time.noData"), muted: true }]),
+      alerts.length > 0
+        ? { kind: "alerts", items: alerts }
+        : { kind: "alerts", items: [{ tone: "green", text: ctx.t("time.aNone") }] },
+    ],
+  };
+
+  const sections: ReportSection[] = [usage];
+  if (!options.detail || !hasData) return sections;
+
+  const effortColumns = [
+    { label: ctx.t("time.initial"), width: 1, align: "right" as const },
+    { label: ctx.t("time.planned"), width: 1, align: "right" as const },
+    { label: ctx.t("time.actual"), width: 1, align: "right" as const },
+    { label: ctx.t("time.remaining"), width: 1, align: "right" as const },
+    { label: ctx.t("time.forecast"), width: 1.1, align: "right" as const },
+  ];
+  const effortCells = (row: { initialHours: number; plannedHours: number; actualHours: number; remainingHours: number; forecastHours: number }) => [
+    h(row.initialHours),
+    h(row.plannedHours),
+    cell(h(row.actualHours), undefined, true),
+    h(row.remainingHours),
+    cell(h(row.forecastHours), row.plannedHours > 0 && row.forecastHours > row.plannedHours ? "orange" : undefined),
+  ];
+
+  sections.push({
+    title: ctx.t("time.secByPhase"),
+    blocks: [
+      {
+        kind: "table",
+        columns: [{ label: ctx.t("time.colPhase"), width: 1.8 }, ...effortColumns],
+        rows: analysis.byPhase.map((row) => [cell(row.label, undefined, true), ...effortCells(row)]),
+        empty: ctx.t("time.noData"),
+      },
+    ],
+  });
+  sections.push({
+    title: ctx.t("time.secByPerson"),
+    blocks: [
+      {
+        kind: "table",
+        columns: [
+          { label: ctx.t("time.colPerson"), width: 1.8 },
+          ...effortColumns,
+          { label: ctx.t("time.colEntries"), width: 0.8, align: "right" },
+        ],
+        rows: analysis.byPerson.map((row) => [
+          cell(row.label, undefined, true),
+          ...effortCells(row),
+          String(row.entries),
+        ]),
+        empty: ctx.t("time.noData"),
+      },
+    ],
+  });
+  sections.push({
+    title: ctx.t("time.secRevisions"),
+    blocks: [
+      {
+        kind: "paragraph",
+        text:
+          analysis.revisions.count > 0
+            ? `${ctx.t("time.revisionsSummary", {
+                count: analysis.revisions.count,
+                delta: signedHoursLabel(ctx, analysis.revisions.totalDeltaHours),
+              })} ${analysis.revisions.byReason
+                .map(
+                  (item) =>
+                    `${rtDynamic(ctx.t, `time.reasons.${item.reason}`)} : ${item.count} (${signedHoursLabel(ctx, item.deltaHours)})`,
+                )
+                .join(" · ")}`
+            : ctx.t("time.noRevisions"),
+        muted: analysis.revisions.count === 0,
+      },
+      ...(analysis.revisions.count > 0
+        ? [
+            {
+              kind: "table" as const,
+              columns: [
+                { label: ctx.t("time.colDate"), width: 0.9 },
+                { label: ctx.t("time.colTask"), width: 2.6 },
+                { label: ctx.t("time.planned"), width: 1.3, align: "right" as const },
+                { label: ctx.t("time.colVariance"), width: 0.9, align: "right" as const },
+                { label: ctx.t("time.colReason"), width: 2 },
+                { label: ctx.t("time.colChangedBy"), width: 1.2 },
+              ],
+              rows: analysis.revisions.recent.map((revision) => [
+                ctx.fmt.date(revision.changedAt),
+                revision.taskTitle,
+                `${revision.previousHours !== null ? h(revision.previousHours) : ctx.t("common.none")} → ${
+                  revision.newHours !== null ? h(revision.newHours) : ctx.t("common.none")
+                }`,
+                cell(signedHoursLabel(ctx, revision.deltaHours), revision.deltaHours > 0 ? "orange" : undefined),
+                `${rtDynamic(ctx.t, `time.reasons.${revision.reason}`)}${revision.reasonText ? ` — ${revision.reasonText}` : ""}`,
+                revision.changedByName,
+              ]),
+            },
+          ]
+        : []),
+    ],
+  });
+  return sections;
 }
 
 /* ------------------------------------------------------------------ */

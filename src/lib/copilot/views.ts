@@ -5,12 +5,15 @@ import { isTaskOverdue } from "@/lib/reports/health";
 import type { BudgetRevision, PhaseValidation, Project, Task } from "@/types";
 import { nextMilestones, overdueTasks, personName, projectReportsUrl, projectUrl, type ProjectInsight } from "./insights";
 import type { LabelKit } from "./labels";
+import { minutesToHours } from "@/lib/time-tracking/duration";
 
 /** Représentations JSON compactes destinées aux LLM (identifiants, libellés lisibles, liens profonds). */
 
 export interface ViewContext {
   kit: LabelKit;
   userById: Map<string, User>;
+  /** Minutes saisies par tâche (suivi du temps). */
+  minutesByTask?: Map<string, number>;
 }
 
 function person(ctx: ViewContext, id: string | undefined, designated?: string): string | null {
@@ -59,6 +62,9 @@ export function taskView(ctx: ViewContext, task: Task, project: Project) {
     dueDate: task.dueDate?.slice(0, 10) ?? null,
     overdue: isTaskOverdue(task, kit.today),
     assignee: person(ctx, task.assigneeId),
+    plannedHours: task.estimatedHours ?? null,
+    initialPlannedHours: task.initialEstimatedHours ?? null,
+    timeSpentHours: minutesToHours(ctx.minutesByTask?.get(task.id) ?? 0),
     url: projectUrl(project.id),
   };
 }

@@ -23,7 +23,7 @@ import {
   type CardVerb,
   type CardView,
 } from "./cards";
-import { buildPendingDecisions, buildProjectStatus } from "./context";
+import { buildPendingDecisions, buildProjectStatus, withTaskTime } from "./context";
 import type { BotI18n } from "./i18n";
 import type { AdaptiveCard } from "./types";
 
@@ -205,7 +205,7 @@ export async function renderCardView(
 ): Promise<AdaptiveCard> {
   switch (view) {
     case "tasks":
-      return myTasksCard(i18n, await listMyOpenTasks(user), todayIso(), banner);
+      return myTasksCard(i18n, await withTaskTime(await listMyOpenTasks(user)), todayIso(), banner);
     case "decisions": {
       const { gates, budgets } = await buildPendingDecisions(user);
       return pendingDecisionsCard(i18n, gates, budgets, banner);

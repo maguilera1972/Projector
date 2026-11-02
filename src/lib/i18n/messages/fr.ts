@@ -217,7 +217,7 @@ const fr = {
     selectUser: "Sélectionner un utilisateur",
     chefHelp: "Seul le chef de projet pourra assigner les tâches du projet.",
     startDate: "Date de début *",
-    endDate: "Date de fin prévue",
+    endDate: "Date de fin prévue *",
     budget: "Budget estimé (CHF)",
     budgetPlaceholder: "Validation mandant requise",
     hours: "Carnet d'heures forfaitaires",

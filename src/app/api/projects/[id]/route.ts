@@ -5,8 +5,10 @@ import {
   getPortfolioById,
   getProjectById,
   updateProjectLocale,
+  updateProjectDates,
   updateProjectMandant,
 } from "@/lib/db/store";
+import { isValidIsoDate } from "@/lib/time-tracking/rules";
 import { isLocale } from "@/lib/i18n/config";
 import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
@@ -40,9 +42,40 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     portfolioId?: string | null;
     mandantUserId?: string | null;
     documentLocale?: unknown;
+    startDate?: unknown;
+    endDate?: unknown;
   };
 
   try {
+    if ("startDate" in body || "endDate" in body) {
+      if (!canUserManageProjectMandant(user, project, portfolio)) {
+        return NextResponse.json({ error: "Accès refusé.", code: "forbidden" }, { status: 403 });
+      }
+      const startDate = typeof body.startDate === "string" ? body.startDate : project.startDate;
+      const endDate = typeof body.endDate === "string" ? body.endDate : project.endDate;
+      if (!isValidIsoDate(startDate) || !isValidIsoDate(endDate)) {
+        return NextResponse.json(
+          { error: "Dates de projet invalides.", code: "invalidDate" },
+          { status: 400 },
+        );
+      }
+      if (endDate < startDate) {
+        return NextResponse.json(
+          {
+            error: "La date de fin doit être postérieure ou égale à la date de début.",
+            code: "invalidPeriod",
+          },
+          { status: 400 },
+        );
+      }
+      const updated = await updateProjectDates(
+        id,
+        { startDate, endDate },
+        { id: user.id, name: user.name },
+      );
+      return NextResponse.json({ project: updated });
+    }
+
     if ("mandantUserId" in body) {
       if (!canUserManageProjectMandant(user, project, portfolio)) {
         return NextResponse.json({ error: "Accès refusé." }, { status: 403 });

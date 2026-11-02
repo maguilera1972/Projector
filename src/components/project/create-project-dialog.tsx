@@ -10,6 +10,7 @@ import { LOCALES, LOCALE_NATIVE_NAMES, type Locale } from "@/lib/i18n/config";
 import { tDynamic } from "@/lib/i18n/translate";
 import type { AssigneeOption } from "@/lib/users";
 import { getIntegrationTranslator } from "@/lib/integrations/i18n";
+import { getTimeTranslator } from "@/lib/time-tracking/i18n";
 
 interface HermesScenarioOption {
   id: string;
@@ -116,6 +117,14 @@ export function CreateProjectDialog({
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError("");
+    if (!form.endDate) {
+      setError(getTimeTranslator(locale)("errors.endDateRequired"));
+      return;
+    }
+    if (form.endDate < form.startDate) {
+      setError(getTimeTranslator(locale)("errors.invalidPeriod"));
+      return;
+    }
     setLoading(true);
 
     try {
@@ -134,7 +143,7 @@ export function CreateProjectDialog({
           mandantUserId: form.mandantUserId || undefined,
           chefDeProjetId: form.chefDeProjetId,
           startDate: form.startDate,
-          endDate: form.endDate || undefined,
+          endDate: form.endDate,
           budget: form.budget ? Number(form.budget) : undefined,
           budgetHours: form.budgetHours ? Number(form.budgetHours) : undefined,
           documentLocale: form.documentLocale,
@@ -457,6 +466,8 @@ export function CreateProjectDialog({
               <input
                 id="endDate"
                 type="date"
+                required
+                min={form.startDate || undefined}
                 value={form.endDate}
                 onChange={(e) => setForm({ ...form, endDate: e.target.value })}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-indigo focus:ring-2 focus:ring-brand-indigo/20"

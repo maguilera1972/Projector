@@ -1,5 +1,6 @@
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils";
+import { niceAxisMax } from "@/lib/reports/format";
 import type {
   ReportBlock,
   ReportCell,
@@ -196,6 +197,90 @@ function Stack(block: Extract<ReportBlock, { kind: "stack" }>) {
   );
 }
 
+function LineChart(block: Extract<ReportBlock, { kind: "lineChart" }>) {
+  const W = 720;
+  const H = 230;
+  const pad = { left: 46, right: 12, top: 12, bottom: 28 };
+  const count = block.labels.length;
+  const max = niceAxisMax(
+    Math.max(
+      1,
+      block.reference?.value ?? 0,
+      ...block.series.flatMap((series) => series.values.map((value) => value ?? 0)),
+    ) * 1.05,
+  );
+  const innerW = W - pad.left - pad.right;
+  const innerH = H - pad.top - pad.bottom;
+  const x = (index: number) => pad.left + (count <= 1 ? innerW / 2 : (index / (count - 1)) * innerW);
+  const y = (value: number) => pad.top + innerH - (value / max) * innerH;
+  const every = Math.max(1, Math.ceil(count / 8));
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => max * ratio);
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap gap-4 text-xs text-slate-600">
+        {[
+          ...block.series.map((series) => ({ label: series.label, color: series.color, dashed: series.dashed })),
+          ...(block.reference ? [{ label: block.reference.label, color: block.reference.color, dashed: true }] : []),
+          ...(block.marker ? [{ label: block.marker.label, color: "#f59e0b", dashed: false }] : []),
+        ].map((item) => (
+          <span key={item.label} className="inline-flex items-center gap-1.5">
+            <svg width="20" height="8" aria-hidden>
+              <line x1="0" y1="4" x2="20" y2="4" stroke={item.color} strokeWidth="2.5" strokeDasharray={item.dashed ? "4 3" : undefined} />
+            </svg>
+            {item.label}
+          </span>
+        ))}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full">
+        {ticks.map((tick, index) => (
+          <g key={index}>
+            <line x1={pad.left} x2={W - pad.right} y1={y(tick)} y2={y(tick)} stroke="#e2e8f0" />
+            <text x={pad.left - 6} y={y(tick) + 3} textAnchor="end" fontSize="10" fill="#64748b">
+              {Number(tick.toFixed(1))} {block.unit}
+            </text>
+          </g>
+        ))}
+        {block.labels.map((label, index) =>
+          index % every === 0 || index === count - 1 ? (
+            <text key={index} x={x(index)} y={H - 8} textAnchor="middle" fontSize="10" fill="#64748b">
+              {label}
+            </text>
+          ) : null,
+        )}
+        {block.reference && (
+          <line
+            x1={pad.left}
+            x2={W - pad.right}
+            y1={y(block.reference.value)}
+            y2={y(block.reference.value)}
+            stroke={block.reference.color}
+            strokeWidth="1.5"
+            strokeDasharray="6 4"
+          />
+        )}
+        {block.marker && (
+          <line x1={x(block.marker.index)} x2={x(block.marker.index)} y1={pad.top} y2={H - pad.bottom} stroke="#f59e0b" strokeWidth="1.5" />
+        )}
+        {block.series.map((series) => (
+          <path
+            key={series.key}
+            d={series.values
+              .map((value, index) => (value === null ? null : `${x(index).toFixed(1)},${y(value).toFixed(1)}`))
+              .filter(Boolean)
+              .map((point, index) => `${index === 0 ? "M" : "L"}${point}`)
+              .join(" ")}
+            fill="none"
+            stroke={series.color}
+            strokeWidth="2.5"
+            strokeDasharray={series.dashed ? "6 4" : undefined}
+          />
+        ))}
+      </svg>
+      {block.caption && <p className="mt-1 text-xs text-brand-muted">{block.caption}</p>}
+    </div>
+  );
+}
+
 function Cell({ value, align }: { value: ReportCell; align?: "left" | "right" | "center" }) {
   const cell = typeof value === "string" ? { text: value } : value;
   return (
@@ -284,6 +369,8 @@ function Block({ block }: { block: ReportBlock }) {
       return <Bars {...block} />;
     case "stack":
       return <Stack {...block} />;
+    case "lineChart":
+      return <LineChart {...block} />;
     case "table":
       return <Table {...block} />;
     case "alerts":

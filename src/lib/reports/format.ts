@@ -85,3 +85,13 @@ export function daysBetween(fromIso: string, toIso: string): number {
   const to = Date.parse(`${toIso.slice(0, 10)}T00:00:00Z`);
   return Math.round((to - from) / 86_400_000);
 }
+
+/** Maximum « rond » d'un axe de graphique, divisible en `ticks` graduations entières ou simples. */
+export function niceAxisMax(value: number, ticks = 4): number {
+  if (!Number.isFinite(value) || value <= 0) return ticks;
+  const raw = value / ticks;
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const normalized = raw / magnitude;
+  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * magnitude;
+  return Math.max(ticks, step * ticks);
+}

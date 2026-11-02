@@ -100,6 +100,9 @@ import type {
   ProjectTeamsWorkspace,
   TeamsConversationRef,
   TeamsMeeting,
+  TimeEntry,
+  TaskEstimateRevision,
+  EstimateRevisionReason,
 } from "@/types";
 import { INTEGRATION_FEATURES } from "@/types";
 import { applyActivityAggregation } from "@/lib/tasks/progress";
@@ -120,6 +123,7 @@ import {
   saveAnnexFile,
 } from "@/lib/documents/annex-storage";
 import { createAuditEntry } from "@/lib/audit/log";
+import { assertValidTimeEntry, timeTrackingError } from "@/lib/time-tracking/rules";
 import { generateDocumentsForValidation } from "@/lib/documents/generate";
 import {
   buildDocxPayload,
@@ -273,6 +277,8 @@ interface Database {
   integrationSettings: IntegrationSettings;
   teamsConversations: TeamsConversationRef[];
   teamsMeetings: TeamsMeeting[];
+  timeEntries: TimeEntry[];
+  taskEstimateRevisions: TaskEstimateRevision[];
 }
 
 export function generalFolderId(projectId: string): string {
@@ -441,6 +447,8 @@ function normalizeDatabase(raw: Partial<Database>): Database {
     integrationSettings: normalizeIntegrationSettings(raw.integrationSettings),
     teamsConversations: raw.teamsConversations ?? [],
     teamsMeetings: raw.teamsMeetings ?? [],
+    timeEntries: raw.timeEntries ?? [],
+    taskEstimateRevisions: raw.taskEstimateRevisions ?? [],
   };
 }
 
@@ -492,6 +500,8 @@ async function loadDatabaseFromDisk(): Promise<Database> {
       integrationSettings: defaultIntegrationSettings(),
       teamsConversations: [],
       teamsMeetings: [],
+      timeEntries: [],
+      taskEstimateRevisions: [],
     };
 
     await persistDatabaseAtomic(db);
@@ -1422,6 +1432,12 @@ export async function deleteProject(projectId: string): Promise<boolean> {
       (item) => item.projectId !== projectId,
     );
     db.teamsMeetings = db.teamsMeetings.filter(
+      (item) => item.projectId !== projectId,
+    );
+    db.timeEntries = db.timeEntries.filter(
+      (item) => item.projectId !== projectId,
+    );
+    db.taskEstimateRevisions = db.taskEstimateRevisions.filter(
       (item) => item.projectId !== projectId,
     );
     delete db.integrationSettings.projectWeather[projectId];
@@ -4602,5 +4618,318 @@ export async function notifyReportShared(
       if (!user || !isUserActive(user)) continue;
       notifyReportAvailable(db.notifications, userId, report);
     }
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Temps passé par tâche                                               */
+/* ------------------------------------------------------------------ */
+
+export interface TimeEntryFilter {
+  taskId?: string;
+  projectId?: string;
+  userId?: string;
+  /** Bornes incluses (AAAA-MM-JJ). */
+  from?: string;
+  to?: string;
+  includeDeleted?: boolean;
+}
+
+export interface TimeEntryChange {
+  userId?: string;
+  date?: string;
+  durationMinutes?: number;
+  comment?: string | null;
+}
+
+function timeEntrySnapshot(entry: TimeEntry) {
+  return {
+    userId: entry.userId,
+    date: entry.date,
+    durationMinutes: entry.durationMinutes,
+    comment: entry.comment ?? null,
+  };
+}
+
+function matchesTimeEntryFilter(entry: TimeEntry, filter: TimeEntryFilter): boolean {
+  if (!filter.includeDeleted && entry.deletedAt) return false;
+  if (filter.taskId && entry.taskId !== filter.taskId) return false;
+  if (filter.projectId && entry.projectId !== filter.projectId) return false;
+  if (filter.userId && entry.userId !== filter.userId) return false;
+  if (filter.from && entry.date < filter.from) return false;
+  if (filter.to && entry.date > filter.to) return false;
+  return true;
+}
+
+export async function listTimeEntries(filter: TimeEntryFilter = {}): Promise<TimeEntry[]> {
+  const db = await readDatabase();
+  return db.timeEntries
+    .filter((entry) => matchesTimeEntryFilter(entry, filter))
+    .map((entry) => structuredClone(entry))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function getTimeEntryById(id: string): Promise<TimeEntry | undefined> {
+  const db = await readDatabase();
+  const entry = db.timeEntries.find((item) => item.id === id);
+  return entry ? structuredClone(entry) : undefined;
+}
+
+/** Historique (journal d'audit) des saisies de temps : création, corrections, suppressions. */
+export async function listTimeEntryAudit(filter: {
+  projectId?: string;
+  taskId?: string;
+}): Promise<AuditLogEntry[]> {
+  const db = await readDatabase();
+  return db.auditLog
+    .filter(
+      (entry) =>
+        entry.action.startsWith("time.") &&
+        (!filter.projectId || entry.projectId === filter.projectId) &&
+        (!filter.taskId || entry.details.taskId === filter.taskId),
+    )
+    .map((entry) => structuredClone(entry))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function requireActiveUser(db: Database, userId: string): DbUser {
+  const user = db.users.find((item) => item.id === userId && isUserActive(item));
+  if (!user) throw timeTrackingError("invalidUser");
+  return user;
+}
+
+export async function createTimeEntry(
+  taskId: string,
+  input: { userId: string; date: string; durationMinutes: number; comment?: string },
+  actor: AuditActor,
+): Promise<TimeEntry> {
+  return mutateDatabase((db) => {
+    const task = db.tasks.find((item) => item.id === taskId);
+    if (!task) throw timeTrackingError("taskNotFound");
+    const person = requireActiveUser(db, input.userId);
+    const comment = input.comment?.trim() || undefined;
+    assertValidTimeEntry({ date: input.date, durationMinutes: input.durationMinutes, comment });
+
+    const now = new Date().toISOString();
+    const entry: TimeEntry = {
+      id: crypto.randomUUID(),
+      taskId,
+      projectId: task.projectId,
+      userId: person.id,
+      date: input.date,
+      durationMinutes: input.durationMinutes,
+      comment,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: actor.id,
+      updatedBy: actor.id,
+    };
+    db.timeEntries.push(entry);
+    appendAudit(db, {
+      projectId: task.projectId,
+      action: "time.created",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: {
+        entryId: entry.id,
+        taskId,
+        taskTitle: task.title,
+        userName: person.name,
+        after: timeEntrySnapshot(entry),
+      },
+    });
+    return structuredClone(entry);
+  });
+}
+
+export async function updateTimeEntry(
+  entryId: string,
+  change: TimeEntryChange,
+  actor: AuditActor,
+): Promise<TimeEntry> {
+  return mutateDatabase((db) => {
+    const entry = db.timeEntries.find((item) => item.id === entryId);
+    if (!entry) throw timeTrackingError("entryNotFound");
+    if (entry.deletedAt) throw timeTrackingError("entryDeleted");
+
+    const before = timeEntrySnapshot(entry);
+    const next = {
+      userId: change.userId ?? entry.userId,
+      date: change.date ?? entry.date,
+      durationMinutes: change.durationMinutes ?? entry.durationMinutes,
+      comment:
+        change.comment === undefined ? entry.comment : change.comment?.trim() || undefined,
+    };
+    if (next.userId !== entry.userId) requireActiveUser(db, next.userId);
+    assertValidTimeEntry(next);
+
+    const unchanged =
+      next.userId === before.userId &&
+      next.date === before.date &&
+      next.durationMinutes === before.durationMinutes &&
+      (next.comment ?? null) === before.comment;
+    if (unchanged) return structuredClone(entry);
+
+    Object.assign(entry, next, { updatedAt: new Date().toISOString(), updatedBy: actor.id });
+    if (!next.comment) delete entry.comment;
+
+    const task = db.tasks.find((item) => item.id === entry.taskId);
+    appendAudit(db, {
+      projectId: entry.projectId,
+      action: "time.updated",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: {
+        entryId: entry.id,
+        taskId: entry.taskId,
+        taskTitle: task?.title,
+        userName: db.users.find((user) => user.id === entry.userId)?.name,
+        before,
+        after: timeEntrySnapshot(entry),
+      },
+    });
+    return structuredClone(entry);
+  });
+}
+
+/** Suppression logique : la saisie reste en base et dans le journal d'audit. */
+export async function deleteTimeEntry(entryId: string, actor: AuditActor): Promise<TimeEntry> {
+  return mutateDatabase((db) => {
+    const entry = db.timeEntries.find((item) => item.id === entryId);
+    if (!entry) throw timeTrackingError("entryNotFound");
+    if (entry.deletedAt) throw timeTrackingError("entryDeleted");
+
+    const now = new Date().toISOString();
+    entry.deletedAt = now;
+    entry.deletedBy = actor.id;
+    entry.updatedAt = now;
+    entry.updatedBy = actor.id;
+
+    const task = db.tasks.find((item) => item.id === entry.taskId);
+    appendAudit(db, {
+      projectId: entry.projectId,
+      action: "time.deleted",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: {
+        entryId: entry.id,
+        taskId: entry.taskId,
+        taskTitle: task?.title,
+        userName: db.users.find((user) => user.id === entry.userId)?.name,
+        before: timeEntrySnapshot(entry),
+      },
+    });
+    return structuredClone(entry);
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Charge prévue des tâches (révisions historisées)                    */
+/* ------------------------------------------------------------------ */
+
+export const MAX_ESTIMATE_HOURS = 100_000;
+
+export async function listTaskEstimateRevisions(filter: {
+  projectId?: string;
+  taskId?: string;
+}): Promise<TaskEstimateRevision[]> {
+  const db = await readDatabase();
+  return db.taskEstimateRevisions
+    .filter(
+      (item) =>
+        (!filter.projectId || item.projectId === filter.projectId) &&
+        (!filter.taskId || item.taskId === filter.taskId),
+    )
+    .map((item) => structuredClone(item))
+    .sort((a, b) => b.changedAt.localeCompare(a.changedAt));
+}
+
+/**
+ * Fixe ou modifie la charge prévue (heures) d'une tâche. Jamais verrouillée :
+ * chaque changement est historisé (révision + journal d'audit) et la première
+ * valeur reste la référence initiale.
+ */
+export async function setTaskEstimate(
+  taskId: string,
+  input: { hours: number | null; reason?: EstimateRevisionReason; reasonText?: string },
+  actor: AuditActor,
+): Promise<{ task: Task; revision: TaskEstimateRevision | null }> {
+  return mutateDatabase((db) => {
+    const task = db.tasks.find((item) => item.id === taskId);
+    if (!task) throw timeTrackingError("taskNotFound");
+    const hours = input.hours;
+    if (hours !== null && (!Number.isFinite(hours) || hours < 0 || hours > MAX_ESTIMATE_HOURS)) {
+      throw timeTrackingError("invalidEstimate");
+    }
+    const newHours = hours && hours > 0 ? Math.round(hours * 100) / 100 : null;
+    const previousHours = task.estimatedHours ?? null;
+    if (newHours === previousHours) return { task: structuredClone(task), revision: null };
+
+    const reasonText = input.reasonText?.trim().slice(0, 500) || undefined;
+    const reason: EstimateRevisionReason =
+      previousHours === null && task.initialEstimatedHours === undefined
+        ? "initial"
+        : input.reason && input.reason !== "initial"
+          ? input.reason
+          : "other";
+
+    if (newHours === null) delete task.estimatedHours;
+    else task.estimatedHours = newHours;
+    if (task.initialEstimatedHours === undefined && newHours !== null) {
+      task.initialEstimatedHours = newHours;
+    }
+    task.updatedAt = new Date().toISOString();
+
+    const revision: TaskEstimateRevision = {
+      id: crypto.randomUUID(),
+      taskId,
+      projectId: task.projectId,
+      previousHours,
+      newHours,
+      reason,
+      reasonText,
+      changedBy: actor.id,
+      changedAt: task.updatedAt,
+    };
+    db.taskEstimateRevisions.push(revision);
+    appendAudit(db, {
+      projectId: task.projectId,
+      action: "task.estimate_changed",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: {
+        taskId,
+        taskTitle: task.title,
+        revisionId: revision.id,
+        before: previousHours,
+        after: newHours,
+        reason,
+        reasonText: reasonText ?? null,
+      },
+    });
+    return { task: structuredClone(task), revision: structuredClone(revision) };
+  });
+}
+
+/** Modifie les dates de début et de fin prévues d'un projet (fin ≥ début). */
+export async function updateProjectDates(
+  projectId: string,
+  input: { startDate: string; endDate: string },
+  actor: AuditActor,
+): Promise<Project> {
+  return mutateDatabase((db) => {
+    const project = db.projects.find((item) => item.id === projectId);
+    if (!project) throw new Error("Projet introuvable.");
+    const before = { startDate: project.startDate, endDate: project.endDate ?? null };
+    project.startDate = input.startDate;
+    project.endDate = input.endDate;
+    appendAudit(db, {
+      projectId,
+      action: "project.dates_changed",
+      actorId: actor.id,
+      actorName: actor.name,
+      details: { before, after: { startDate: input.startDate, endDate: input.endDate } },
+    });
+    return structuredClone(project);
   });
 }

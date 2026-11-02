@@ -6,6 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { TaskAssigneeSelect } from "@/components/task/task-assignee-select";
 import { TaskEditDialog } from "@/components/task/task-edit-dialog";
 import { TaskScheduleBadge } from "@/components/task/task-schedule-badge";
+import { QuickTimeDialog } from "@/components/time/quick-time-dialog";
+import { TaskTimeCell } from "@/components/time/task-time-cell";
+import { useTimeI18n } from "@/components/time/use-time-i18n";
 import { formatVarianceDays } from "@/lib/scheduling/gantt";
 import { getPhaseLabel } from "@/lib/hermes/phases";
 import { formatDate } from "@/lib/utils";
@@ -43,6 +46,8 @@ interface ProjectTasksTableViewProps {
   canAssign: boolean;
   schedule: ProjectScheduleSummary;
   baseline?: ProjectBaseline;
+  timeByTask?: Record<string, number>;
+  canLogTaskIds?: string[];
 }
 
 export function ProjectTasksTableView({
@@ -52,8 +57,13 @@ export function ProjectTasksTableView({
   canAssign,
   schedule,
   baseline,
+  timeByTask = {},
+  canLogTaskIds = [],
 }: ProjectTasksTableViewProps) {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [loggingTask, setLoggingTask] = useState<Task | null>(null);
+  const { tt } = useTimeI18n();
+  const canLog = new Set(canLogTaskIds);
   const criticalSet = new Set(schedule.criticalTaskIds);
 
   const timeline = computeGanttTimeline(tasks, baseline?.snapshots);
@@ -74,7 +84,7 @@ export function ProjectTasksTableView({
   return (
     <>
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full min-w-[960px] text-left text-sm">
+        <table className="w-full min-w-[1080px] text-left text-sm">
           <thead className="border-b border-slate-100 bg-slate-50">
             <tr>
               <th className="px-4 py-3 font-semibold text-slate-700">Tâche</th>
@@ -94,6 +104,9 @@ export function ProjectTasksTableView({
               )}
               <th className="px-4 py-3 font-semibold text-slate-700">
                 Avancement
+              </th>
+              <th className="px-4 py-3 font-semibold text-slate-700" title={tt("common.columnTitle")}>
+                {tt("common.column")}
               </th>
               <th className="px-4 py-3 font-semibold text-slate-700">Assigné</th>
               <th className="px-4 py-3 font-semibold text-slate-700">Statut</th>
@@ -159,6 +172,13 @@ export function ProjectTasksTableView({
                     </div>
                   </td>
                   <td className="px-4 py-3">
+                    <TaskTimeCell
+                      minutes={timeByTask[task.id] ?? 0}
+                      estimatedHours={task.estimatedHours}
+                      onLog={canLog.has(task.id) ? () => setLoggingTask(task) : undefined}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
                     <TaskAssigneeSelect
                       taskId={task.id}
                       assigneeId={task.assigneeId}
@@ -183,6 +203,12 @@ export function ProjectTasksTableView({
         taskId={editingTaskId}
         open={editingTaskId !== null}
         onClose={() => setEditingTaskId(null)}
+      />
+
+      <QuickTimeDialog
+        taskId={loggingTask?.id ?? null}
+        taskTitle={loggingTask?.title}
+        onClose={() => setLoggingTask(null)}
       />
     </>
   );

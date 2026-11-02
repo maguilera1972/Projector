@@ -217,7 +217,7 @@ const de: Messages = {
     selectUser: "Benutzer auswählen",
     chefHelp: "Nur die Projektleitung kann die Aufgaben des Projekts zuweisen.",
     startDate: "Startdatum *",
-    endDate: "Geplantes Enddatum",
+    endDate: "Geplantes Enddatum *",
     budget: "Geschätztes Budget (CHF)",
     budgetPlaceholder: "Freigabe durch Auftraggeber erforderlich",
     hours: "Pauschales Stundenkontingent",

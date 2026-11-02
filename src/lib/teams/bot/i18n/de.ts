@@ -53,6 +53,8 @@ const de: BotMessages = {
     refreshPersonalOnly: "Aktualisieren Sie diese Karte in Ihrem persönlichen Chat mit PROJECTOR.",
   },
   tasks: {
+    timeSpent: "Aufgewendete Zeit: {spent}",
+    timeSpentPlanned: "Aufgewendete Zeit: {spent} / {planned} h geplant",
     title: "Meine offenen Aufgaben ({count})",
     empty: "Keine offenen Aufgaben. Gut gemacht!",
     complete: "Abschliessen",

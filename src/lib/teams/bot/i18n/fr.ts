@@ -52,6 +52,8 @@ const fr = {
     refreshPersonalOnly: "Actualisez cette carte depuis votre conversation personnelle avec PROJECTOR.",
   },
   tasks: {
+    timeSpent: "Temps passé : {spent}",
+    timeSpentPlanned: "Temps passé : {spent} / {planned} h prévues",
     title: "Mes tâches ouvertes ({count})",
     empty: "Aucune tâche ouverte. Bravo !",
     complete: "Terminer",

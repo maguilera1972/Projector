@@ -4,6 +4,7 @@ import type {
   ReportDocument,
   ReportTone,
 } from "../types";
+import { niceAxisMax } from "../format";
 import type { FontId } from "./fonts";
 import { PAGE_HEIGHT, PAGE_WIDTH, PdfCanvas } from "./writer";
 
@@ -164,6 +165,8 @@ class ReportPdfRenderer {
         return this.bars(block);
       case "stack":
         return this.stack(block);
+      case "lineChart":
+        return this.lineChart(block);
       case "table":
         return this.table(block);
       case "alerts":
@@ -361,6 +364,94 @@ class ReportPdfRenderer {
     if (block.caption) {
       c.text(block.caption, MARGIN, this.y + 4, { size: 7.5, color: C.muted });
       this.y += 10;
+    }
+  }
+
+  private lineChart(block: Extract<ReportBlock, { kind: "lineChart" }>): void {
+    const c = this.canvas;
+    this.legend([
+      ...block.series.map((series) => ({ label: series.label, color: series.color })),
+      ...(block.reference ? [{ label: block.reference.label, color: block.reference.color }] : []),
+      ...(block.marker ? [{ label: block.marker.label, color: TONE.orange.main }] : []),
+    ]);
+    const height = 170;
+    this.ensure(height + 24);
+    const left = MARGIN + 40;
+    const right = MARGIN + CONTENT_WIDTH - 6;
+    const top = this.y + 4;
+    const bottom = top + height;
+    const count = block.labels.length;
+    const max = niceAxisMax(
+      Math.max(
+        1,
+        block.reference?.value ?? 0,
+        ...block.series.flatMap((series) => series.values.map((value) => value ?? 0)),
+      ) * 1.05,
+    );
+    const x = (index: number) => (count <= 1 ? (left + right) / 2 : left + ((right - left) * index) / (count - 1));
+    const y = (value: number) => bottom - ((bottom - top) * value) / max;
+
+    for (const ratio of [0, 0.25, 0.5, 0.75, 1]) {
+      const value = max * ratio;
+      c.line(left, y(value), right, y(value), C.border, 0.5);
+      c.text(`${Number(value.toFixed(1))} ${block.unit}`, MARGIN, y(value) + 3, {
+        size: 7,
+        color: C.muted,
+        align: "right",
+        width: 34,
+      });
+    }
+    const every = Math.max(1, Math.ceil(count / 8));
+    block.labels.forEach((label, index) => {
+      if (index % every !== 0 && index !== count - 1) return;
+      c.text(label, x(index) - 30, bottom + 11, { size: 7, color: C.muted, align: "center", width: 60 });
+    });
+    if (block.reference) {
+      const ref = y(block.reference.value);
+      for (let start = left; start < right; start += 9) {
+        c.line(start, ref, Math.min(right, start + 5), ref, block.reference.color, 1);
+      }
+    }
+    if (block.marker) {
+      c.line(x(block.marker.index), top, x(block.marker.index), bottom, TONE.orange.main, 1);
+    }
+    for (const series of block.series) {
+      let previous: { x: number; y: number } | null = null;
+      series.values.forEach((value, index) => {
+        if (value === null) {
+          previous = null;
+          return;
+        }
+        const point = { x: x(index), y: y(value) };
+        if (previous) {
+          if (series.dashed) {
+            const steps = Math.max(1, Math.round(Math.hypot(point.x - previous.x, point.y - previous.y) / 6));
+            for (let step = 0; step < steps; step += 2) {
+              const a = step / steps;
+              const b = Math.min(1, (step + 1) / steps);
+              c.line(
+                previous.x + (point.x - previous.x) * a,
+                previous.y + (point.y - previous.y) * a,
+                previous.x + (point.x - previous.x) * b,
+                previous.y + (point.y - previous.y) * b,
+                series.color,
+                1.6,
+              );
+            }
+          } else {
+            c.line(previous.x, previous.y, point.x, point.y, series.color, 1.8);
+          }
+        }
+        previous = point;
+      });
+    }
+    this.y = bottom + 18;
+    if (block.caption) {
+      for (const line of c.wrap(block.caption, CONTENT_WIDTH, "regular", 7.5)) {
+        this.ensure(11);
+        c.text(line, MARGIN, this.y + 7, { size: 7.5, color: C.muted });
+        this.y += 10;
+      }
     }
   }
 

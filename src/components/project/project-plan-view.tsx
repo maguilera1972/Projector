@@ -24,6 +24,8 @@ interface ProjectPlanViewProps {
   canEdit: boolean;
   schedule: ProjectScheduleSummary;
   baselines: ProjectBaseline[];
+  timeByTask?: Record<string, number>;
+  canLogTaskIds?: string[];
 }
 
 const tabs: { id: PlanTab; label: string; icon: typeof List }[] = [
@@ -40,6 +42,8 @@ export function ProjectPlanView({
   canEdit,
   schedule,
   baselines,
+  timeByTask,
+  canLogTaskIds,
 }: ProjectPlanViewProps) {
   const [activeTab, setActiveTab] = useState<PlanTab>("gantt");
   const [selectedBaselineId, setSelectedBaselineId] = useState<string | null>(
@@ -99,6 +103,8 @@ export function ProjectPlanView({
           canAssign={canEdit}
           schedule={schedule}
           baseline={selectedBaseline}
+          timeByTask={timeByTask}
+          canLogTaskIds={canLogTaskIds}
         />
       )}
 

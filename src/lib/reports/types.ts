@@ -78,6 +78,15 @@ export interface ReportTableColumn {
   width?: number;
 }
 
+export interface ReportLineSeries {
+  key: string;
+  label: string;
+  color: string;
+  dashed?: boolean;
+  /** Une valeur par point de l'axe X (null = pas de valeur). */
+  values: (number | null)[];
+}
+
 export interface ReportWeather {
   dimension: string;
   tone: ReportTone;
@@ -98,6 +107,19 @@ export type ReportBlock =
       formatted: (string | null)[][];
     }
   | { kind: "stack"; segments: ReportStackSegment[]; total: number; caption?: string }
+  | {
+      kind: "lineChart";
+      /** Libellés de l'axe X (un par point). */
+      labels: string[];
+      series: ReportLineSeries[];
+      /** Unité affichée sur l'axe Y (ex. « h »). */
+      unit: string;
+      /** Repère vertical (ex. aujourd'hui). */
+      marker?: { index: number; label: string };
+      /** Ligne horizontale de référence (ex. budget heures). */
+      reference?: { value: number; label: string; color: string };
+      caption?: string;
+    }
   | { kind: "table"; columns: ReportTableColumn[]; rows: ReportCell[][]; empty?: string }
   | { kind: "alerts"; items: { tone: ReportTone; text: string }[] }
   | { kind: "paragraph"; text: string; muted?: boolean };

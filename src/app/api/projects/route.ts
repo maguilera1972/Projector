@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 import type { CreateProjectInput, HermesApproach } from "@/types";
 import { isLocale } from "@/lib/i18n/config";
+import { isValidIsoDate } from "@/lib/time-tracking/rules";
 
 export async function GET() {
   const user = await getSessionUser();
@@ -56,6 +57,20 @@ export async function POST(request: Request) {
     if (!body.startDate) {
       return NextResponse.json(
         { error: "La date de début est requise." },
+        { status: 400 },
+      );
+    }
+
+    if (!body.endDate || !isValidIsoDate(body.endDate) || !isValidIsoDate(body.startDate)) {
+      return NextResponse.json(
+        { error: "La date de fin prévue est requise.", code: "endDateRequired" },
+        { status: 400 },
+      );
+    }
+
+    if (body.endDate < body.startDate) {
+      return NextResponse.json(
+        { error: "La date de fin doit être postérieure ou égale à la date de début.", code: "invalidPeriod" },
         { status: 400 },
       );
     }

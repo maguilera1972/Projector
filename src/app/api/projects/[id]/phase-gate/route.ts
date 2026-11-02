@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isTimeAuditAction } from "@/lib/audit/log";
 import { getSessionUser } from "@/lib/auth/session";
 import {
   canUserActAsChefDeProjet,
@@ -37,7 +38,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
   const context = await getQualityGateContextForProject(id);
   const budgetRevisions = await listBudgetRevisionsByProject(id);
   const validations = await listPhaseValidationsByProject(id);
-  const auditLog = await listAuditLogByProject(id);
+  const auditLog = (await listAuditLogByProject(id)).filter(
+    (entry) => !isTimeAuditAction(entry.action),
+  );
 
   return NextResponse.json({
     project,

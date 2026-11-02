@@ -142,6 +142,63 @@ export interface Task {
   updatedAt?: string;
   /** Date de la notification « tâche en retard » (évite les doublons). */
   overdueNotifiedAt?: string;
+  /** Charge prévue actuelle (heures de travail), fixée par le chef de projet. */
+  estimatedHours?: number;
+  /** Charge prévue initiale (première valeur fixée) : référence des écarts d'estimation. */
+  initialEstimatedHours?: number;
+}
+
+export type EstimateRevisionReason =
+  | "initial"
+  | "unforeseen"
+  | "scope_change"
+  | "estimation_error"
+  | "other";
+
+export const ESTIMATE_REVISION_REASONS: EstimateRevisionReason[] = [
+  "unforeseen",
+  "scope_change",
+  "estimation_error",
+  "other",
+];
+
+/** Historique des modifications de la charge prévue d'une tâche. */
+export interface TaskEstimateRevision {
+  id: string;
+  taskId: string;
+  projectId: string;
+  previousHours: number | null;
+  newHours: number | null;
+  reason: EstimateRevisionReason;
+  reasonText?: string;
+  changedBy: string;
+  changedAt: string;
+}
+
+/** Temps passé saisi sur une tâche (supprimé logiquement : jamais effacé). */
+export interface TimeEntry {
+  id: string;
+  taskId: string;
+  projectId: string;
+  /** Personne pour laquelle le temps est saisi. */
+  userId: string;
+  /** Jour travaillé (AAAA-MM-JJ). */
+  date: string;
+  durationMinutes: number;
+  comment?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  updatedBy: string;
+  deletedAt?: string;
+  deletedBy?: string;
+}
+
+export interface TimeEntryInput {
+  date: string;
+  durationMinutes: number;
+  comment?: string;
+  userId?: string;
 }
 
 export interface TaskDependency {

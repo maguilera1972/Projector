@@ -1,4 +1,5 @@
 import { absoluteUrl } from "@/lib/integrations/config";
+import { formatDuration } from "@/lib/time-tracking/duration";
 import type { BudgetRevision, PhaseValidation, Project, Task } from "@/types";
 import type { BotI18n } from "./i18n";
 import type { AdaptiveCard } from "./types";
@@ -221,6 +222,8 @@ export function messageCard(i18n: BotI18n, banner: Banner, actions: unknown[] = 
 export interface TaskListItem {
   task: Task;
   project: Project;
+  /** Temps total saisi sur la tâche (minutes). */
+  minutesSpent?: number;
 }
 
 function taskItem(i18n: BotI18n, item: TaskListItem, today: string): Record<string, unknown> {
@@ -244,6 +247,19 @@ function taskItem(i18n: BotI18n, item: TaskListItem, today: string): Record<stri
         size: "Small",
         color: overdue ? "Attention" : "Default",
       }),
+      ...(item.minutesSpent !== undefined
+        ? [
+            textBlock(
+              task.estimatedHours
+                ? t("tasks.timeSpentPlanned", {
+                    spent: formatDuration(item.minutesSpent),
+                    planned: task.estimatedHours,
+                  })
+                : t("tasks.timeSpent", { spent: formatDuration(item.minutesSpent) }),
+              { spacing: "None", size: "Small", isSubtle: true },
+            ),
+          ]
+        : []),
       {
         type: "ActionSet",
         actions: [

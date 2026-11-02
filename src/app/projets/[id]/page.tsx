@@ -35,6 +35,13 @@ import { formatDate } from "@/lib/utils";
 import { localizeScenario, localizeTasks } from "@/lib/hermes/i18n";
 import { toAssigneeOptions } from "@/lib/users";
 import { ProjectLanguageSelect } from "@/components/project/project-language-select";
+import { ProjectPeriodCard } from "@/components/time/project-period-card";
+import { ProjectTimePanel, type PlanningTask } from "@/components/time/project-time-panel";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
+import { isTimeAuditAction } from "@/lib/audit/log";
+import { getPhasesForApproach } from "@/lib/hermes/phases";
+import { isTimeManager } from "@/lib/time-tracking/access";
+import { buildTaskTimeIndex, loadProjectTimeAnalysis } from "@/lib/time-tracking/service";
 import { ProjectDocumentsExplorer } from "@/components/project/project-documents-explorer";
 import { loadProjectDocumentsExplorer } from "@/lib/documents/explorer-data";
 import { getRequestTranslator } from "@/lib/i18n/server";
@@ -98,7 +105,9 @@ export default async function ProjectDetailPage({
     };
   const budgetRevisions = await listBudgetRevisionsByProject(id);
   const phaseValidations = await listPhaseValidationsByProject(id);
-  const auditLog = await listAuditLogByProject(id);
+  const auditLog = (await listAuditLogByProject(id)).filter(
+    (entry) => !isTimeAuditAction(entry.action),
+  );
   const projectDocuments = await listProjectDocumentsByProject(id);
   const generatedDocuments = await listGeneratedDocumentsByProject(id);
   const pendingBudgetDocument = projectDocuments.find(
@@ -123,6 +132,27 @@ export default async function ProjectDetailPage({
   const canScheduleMeetings = canManageTeams || canApproveAsMandant || isPlatformAdmin(user);
   const canChangeLanguage =
     canSubmitPhase || user.role === "admin";
+  const canManageTime = isTimeManager(user, project, portfolio);
+  const canSeeTimeAnalysis =
+    canManageTime ||
+    (user.role !== "guest" && hasPermission(user, PERMISSIONS.REPORTS_READ));
+  const timeAnalysis = await loadProjectTimeAnalysis(project, locale);
+  const timeIndex = await buildTaskTimeIndex(user, tasks);
+  const phaseOrder = getPhasesForApproach(project.approach).map((phase) => phase.id);
+  const planningTasks: PlanningTask[] = [...tasks]
+    .sort(
+      (a, b) =>
+        phaseOrder.indexOf(a.phase) - phaseOrder.indexOf(b.phase) ||
+        (a.order ?? 0) - (b.order ?? 0),
+    )
+    .map((task) => ({
+      taskId: task.id,
+      title: task.title,
+      phase: task.phase,
+      phaseLabel: tDynamic(t, `enums.phase.${task.phase}`),
+      estimatedHours: task.estimatedHours ?? null,
+      initialEstimatedHours: task.initialEstimatedHours ?? null,
+    }));
 
   return (
     <>
@@ -198,7 +228,17 @@ export default async function ProjectDetailPage({
               canEdit={canAssign}
               schedule={schedule}
               baselines={baselines}
+              timeByTask={timeIndex.timeByTask}
+              canLogTaskIds={timeIndex.canLogTaskIds}
             />
+
+            {canSeeTimeAnalysis && (
+              <ProjectTimePanel
+                analysis={timeAnalysis}
+                canManage={canManageTime}
+                planningTasks={planningTasks}
+              />
+            )}
 
             {documentsExplorer && (
               <ProjectDocumentsExplorer {...documentsExplorer} showProjectLink />
@@ -218,6 +258,12 @@ export default async function ProjectDetailPage({
           </div>
 
           <aside className="space-y-6">
+            <ProjectPeriodCard
+              projectId={project.id}
+              period={timeAnalysis.period}
+              canEdit={canManageTeams}
+            />
+
             <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">
                 {t("projectPage.info")}

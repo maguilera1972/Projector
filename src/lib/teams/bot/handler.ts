@@ -25,7 +25,13 @@ import {
   sendToConversation,
   updateActivity,
 } from "./connector";
-import { botI18nFor, buildPendingDecisions, buildProjectStatus, findProjectForUser } from "./context";
+import {
+  botI18nFor,
+  buildPendingDecisions,
+  buildProjectStatus,
+  findProjectForUser,
+  withTaskTime,
+} from "./context";
 import { parseCardAction, renderCardView, runCardAction, viewFor } from "./execute";
 import { composeMessage, handleComposeQuery, handleQueryLink } from "./extension";
 import type { BotI18n } from "./i18n";
@@ -232,7 +238,10 @@ async function commandCard(
 ): Promise<{ card: AdaptiveCard; shareable: boolean }> {
   switch (command.kind) {
     case "myTasks":
-      return { card: myTasksCard(i18n, await listMyOpenTasks(user), todayIso()), shareable: false };
+      return {
+        card: myTasksCard(i18n, await withTaskTime(await listMyOpenTasks(user)), todayIso()),
+        shareable: false,
+      };
     case "decisions": {
       const { gates, budgets } = await buildPendingDecisions(user);
       return { card: pendingDecisionsCard(i18n, gates, budgets), shareable: false };

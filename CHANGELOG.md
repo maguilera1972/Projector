@@ -9,6 +9,19 @@ Les nouvelles entrées s'ajoutent **en haut**, juste sous ce paragraphe.
 
 ## 2026-11-02
 
+### Ajouté (suivi du temps, charges prévues, période du projet)
+
+- Suivi du temps passé par tâche : saisies `{date, durée, commentaire}` stockées en base (migration automatique), formats acceptés `1h30`, `1.5`, `90m`, `1:30` ; durée > 0 et ≤ 24 h, date future refusée (tolérance d'un jour), avertissement non bloquant au-delà de 10 h par jour et par personne.
+- Règles : chaque membre saisit son temps sur les tâches qui lui sont assignées (tâche ou activité) ; chef de projet, responsable du portfolio et administrateur saisissent et corrigent pour tout le monde ; l'auteur peut toujours corriger ou supprimer ses saisies (aucun verrouillage, même tâche terminée) ; suppression logique et journal d'audit avant/après.
+- Section « Temps passé » dans la fiche tâche (saisie, correction, suppression, total vs charge prévue, historique des corrections), colonne « Temps » et action rapide « Saisir du temps » dans les tableaux de tâches (page Tâches et plan du projet).
+- Feuille de temps hebdomadaire « Mes temps » (page Tâches) : tâches assignées × jours, cellules éditables, totaux par jour et par semaine, navigation entre semaines (semaines passées modifiables).
+- Charge prévue (h) par tâche, fixée et modifiable à tout moment par le chef de projet / l'administrateur, avec charge initiale conservée et historique des révisions (motif : imprévu, changement de périmètre, erreur d'estimation, autre + précision) ; éditeur « Planifier les charges » sur la page projet.
+- Période du projet : date de fin prévue obligatoire à la création (fin ≥ début), modifiable par le chef de projet / l'administrateur ; carte « Période du projet » (temps écoulé, jours restants, fin « à définir » estimée d'après les tâches pour les projets existants).
+- Page projet « Temps passé sur le projet » : charge initiale / prévue / réalisée, reste à faire, prévision à terminaison, budget heures, courbe cumulée prévu vs réalisé sur toute la durée du projet (repère « aujourd'hui »), répartition par phase et par personne, synthèse des réestimations.
+- Rapports : utilisation du temps (graphique cumulé, indicateurs, alertes) dans les rapports d'avancement, budget et ressources, détails par phase / personne et réestimations dans le rapport budget, heures saisies par personne dans le rapport ressources ; nouveau bloc graphique en courbes dans l'aperçu et le PDF.
+- API : `/api/tasks/{id}/time-entries`, `/api/time-entries` (filtres personne, projet, tâche, période), `/api/time-entries/{id}`, `/api/tasks/{id}/estimate` ; API Copilot (`plannedHours`, `initialPlannedHours`, `timeSpentHours`, spécification OpenAPI) et carte Teams « Mes tâches » avec le temps passé.
+- Tous les nouveaux libellés en français, anglais, italien, espagnol et allemand.
+
 ### Ajouté (Azure Bot)
 
 - Ressource Azure Bot `projector-bot` créée dans le groupe de ressources `MAITLAB` (abonnement « Microsoft Partner Network », F0, mono-locataire) avec le canal Microsoft Teams activé ; état consigné dans le document de conception.

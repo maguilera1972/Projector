@@ -4,8 +4,10 @@ import {
   listAllBudgetRevisions,
   listAllPhaseValidations,
   listTasks,
+  listTimeEntries,
   listUsers,
 } from "@/lib/db/store";
+import { minutesByTask } from "@/lib/time-tracking/summary";
 import { normalizeLocale } from "@/lib/i18n/config";
 import { listPendingDecisions, listVisibleProjects } from "@/lib/integrations/actions";
 import type { Project } from "@/types";
@@ -81,4 +83,12 @@ export async function buildPendingDecisions(
       requestedByName: nameById.get(revision.requestedBy),
     })),
   };
+}
+
+/** Ajoute à chaque tâche le temps total saisi (minutes). */
+export async function withTaskTime<T extends { task: { id: string } }>(
+  items: T[],
+): Promise<(T & { minutesSpent: number })[]> {
+  const totals = minutesByTask(await listTimeEntries());
+  return items.map((item) => ({ ...item, minutesSpent: totals.get(item.task.id) ?? 0 }));
 }

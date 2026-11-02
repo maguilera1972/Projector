@@ -217,7 +217,7 @@ const it: Messages = {
     selectUser: "Selezionare un utente",
     chefHelp: "Solo il capoprogetto potrà assegnare i compiti del progetto.",
     startDate: "Data di inizio *",
-    endDate: "Data di fine prevista",
+    endDate: "Data di fine prevista *",
     budget: "Budget stimato (CHF)",
     budgetPlaceholder: "Validazione del committente richiesta",
     hours: "Monte ore forfettario",

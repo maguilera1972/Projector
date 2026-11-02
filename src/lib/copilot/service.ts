@@ -1,4 +1,5 @@
-import { listAllUsers, listProjects } from "@/lib/db/store";
+import { listAllUsers, listProjects, listTimeEntries } from "@/lib/db/store";
+import { minutesByTask } from "@/lib/time-tracking/summary";
 import { canUserActAsMandant } from "@/lib/hermes/project-roles";
 import type { Locale } from "@/lib/i18n/config";
 import {
@@ -77,6 +78,10 @@ export async function loadContext(projects: Project[], locale: Locale): Promise<
 
 /** Contexte de rendu sans calcul de météo (réponses des actions). */
 export async function loadViewContext(locale: Locale): Promise<ViewContext> {
-  const users = await listAllUsers();
-  return { kit: createLabelKit(locale), userById: new Map(users.map((user) => [user.id, user])) };
+  const [users, entries] = await Promise.all([listAllUsers(), listTimeEntries()]);
+  return {
+    kit: createLabelKit(locale),
+    userById: new Map(users.map((user) => [user.id, user])),
+    minutesByTask: minutesByTask(entries),
+  };
 }
